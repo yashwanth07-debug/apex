@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APEX · SPA-FRANCORCHAMPS 1992 · FERRARI F1 — 3D</title>
+  <meta name="description" content="3D viewer for the Ferrari F1 2019 and the 1992 Spa-Francorchamps circuit — the real assets behind APEX Grand Prix." />
+  <style>
+    :root { --red: #e10600; --txt: #e8edf2; --dim: #9aa6b2; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #0b0d10; color: var(--txt);
+      font-family: 'Sora', system-ui, -apple-system, Segoe UI, Roboto, sans-serif; overflow: hidden; }
+    #viewer { display: block; width: 100%; height: 100%; }
+    #hud { position: fixed; inset: 0; pointer-events: none; }
+    #top { position: absolute; top: 18px; left: 20px; }
+    #top .kicker { font-family: ui-monospace, 'IBM Plex Mono', Menlo, monospace;
+      font-size: 11px; letter-spacing: 3px; color: var(--red); }
+    #top h1 { font-size: 22px; font-weight: 800; margin-top: 4px; letter-spacing: 1px; }
+    #top h1 span { color: var(--red); }
+    #status { margin-top: 8px; font-size: 12px; color: var(--dim); max-width: 320px; line-height: 1.5; }
+    #controls { position: absolute; bottom: 18px; left: 20px; display: flex; gap: 10px; flex-wrap: wrap; pointer-events: auto; }
+    button { background: rgba(20,24,30,0.85); color: var(--txt); border: 1px solid #2a323c;
+      border-radius: 10px; padding: 10px 14px; font-family: inherit; font-size: 12px; cursor: pointer; transition: .15s; }
+    button:hover { border-color: var(--red); }
+    button.active { border-color: var(--red); color: #fff; background: rgba(225,6,0,0.18); }
+    #hint { position: absolute; bottom: 20px; right: 20px; font-size: 11px; color: var(--dim); text-align: right; line-height: 1.7; }
+    #hint b { color: var(--txt); }
+  </style>
+  <script type="module" crossorigin src="/apex/assets/spa-ClenidMP.js"></script>
+  <link rel="modulepreload" crossorigin href="/apex/assets/GLTFLoader-Dv6bvDZ-.js">
+</head>
+<body>
+  <canvas id="viewer"></canvas>
+  <div id="hud">
+    <div id="top">
+      <div class="kicker">APEX · ASSET VIEWER</div>
+      <h1>SPA-FRANCORCHAMPS <span>1992</span></h1>
+      <div id="status">Loading the circuit…</div>
+    </div>
+    <div id="controls">
+      <button id="btnSpa" class="active">🗺️ Circuit</button>
+      <button id="btnFerrari">🏎️ Ferrari F1 2019</button>
+      <button id="btnReset">🎯 Reset view</button>
+      <a href="./index.html"><button>◂ Back to race</button></a>
+    </div>
+    <div id="hint"><b>Drag</b> orbit · <b>Scroll</b> zoom · <b>Right-drag</b> pan</div>
+  </div>
+</body>
+</html>

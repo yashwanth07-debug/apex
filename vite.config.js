@@ -4,5 +4,11 @@ import { defineConfig } from 'vite';
 // root deployment get '/'. One build, both targets — zero config.
 export default defineConfig({
   base: process.env.VERCEL ? '/' : '/apex/',
-  build: { target: 'es2022', chunkSizeWarningLimit: 900 },
+  build: {
+    target: 'es2022',
+    chunkSizeWarningLimit: 1200,
+    rollupOptions: { input: { main: 'index.html', spa: 'spa.html' } },
+  },
+  server: { allowedHosts: true },
+  preview: { allowedHosts: true },
 });

@@ -25,13 +25,21 @@ export function buildInput({ onFirstEngage } = {}) {
     knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
   };
 
+  // steering response: deadzone + smoothstep — tiny drags won't twitch the car
+  const steerCurve = (v) => {
+    const D = 0.14, a = Math.abs(v);
+    if (a < D) return 0;
+    const t = Math.min(1, (a - D) / (1 - D));
+    return Math.sign(v) * t * t * (3 - 2 * t);
+  };
+
   if (pad && knob) {
     pad.addEventListener('pointerdown', (e) => {
       pid = e.pointerId; pad.setPointerCapture(pid); engage();
       const r = pad.getBoundingClientRect();
       const dx = Math.max(-R, Math.min(R, e.clientX - (r.left + r.width / 2)));
       const dy = Math.max(-R, Math.min(R, e.clientY - (r.top + r.height / 2)));
-      padV.s = Math.abs(dx / R) < 0.1 ? 0 : dx / R;
+      padV.s = steerCurve(dx / R);
       padV.t = Math.abs(dy / R) < 0.1 ? 0 : -dy / R;
       knobTo(dx, dy); commit();
     });
@@ -40,7 +48,7 @@ export function buildInput({ onFirstEngage } = {}) {
       const r = pad.getBoundingClientRect();
       const dx = Math.max(-R, Math.min(R, e.clientX - (r.left + r.width / 2)));
       const dy = Math.max(-R, Math.min(R, e.clientY - (r.top + r.height / 2)));
-      padV.s = Math.abs(dx / R) < 0.1 ? 0 : dx / R;
+      padV.s = steerCurve(dx / R);
       padV.t = Math.abs(dy / R) < 0.1 ? 0 : -dy / R;
       knobTo(dx, dy); commit();
     });

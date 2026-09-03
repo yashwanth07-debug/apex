@@ -4,6 +4,7 @@ import { PILOT, RIVALS } from './data.js';
 import { buildTrack, TRACK_HALF } from './world/track.js';
 import { buildEnvironment } from './world/environment.js';
 import { buildF1 } from './world/car.js';
+import { loadFerrari, buildFerrari } from './world/ferrari.js';
 import { buildPost } from './core/post.js';
 import { RaceAudio } from './core/audio.js';
 import { buildInput } from './core/input.js';
@@ -59,8 +60,15 @@ async function build() {
   const steps = [
     ['Laying asphalt', () => { trackApi = buildTrack(scene); }],
     ['Raising grandstands', () => { envApi = buildEnvironment(scene, trackApi); }],
-    ['Building the grid', () => {
-      hero = buildF1({ paint: 0xe1141e, number: 23 });
+    ['Building the grid', async () => {
+      try {
+        const gltf = await loadFerrari();
+        hero = buildFerrari(gltf);
+        console.log('[APEX] Ferrari F1 2019 loaded');
+      } catch (err) {
+        console.warn('[APEX] Ferrari failed to load — falling back to kit car', err && err.message);
+        hero = buildF1({ paint: 0xe1141e, number: 23 });
+      }
       scene.add(hero);
       for (let i = 0; i < RIVALS.length; i++) {
         const c = buildF1({ paint: RIVALS[i].livery, number: 20 + i * 7 });
@@ -78,7 +86,7 @@ async function build() {
     ['Warming tires', () => { renderer.compile(scene, camera); }],
   ];
   for (let i = 0; i < steps.length; i++) {
-    try { steps[i][1](); } catch (err) { console.error(`[APEX] build "${steps[i][0] }"`, err); throw err; }
+    try { await steps[i][1](); } catch (err) { console.error(`[APEX] build "${steps[i][0] }"`, err); throw err; }
     hud.preloader((i + 1) / steps.length, i === steps.length - 1);
     await new Promise(r => requestAnimationFrame(r));
     await new Promise(r => setTimeout(r, 100));
@@ -115,7 +123,7 @@ function placeCarOnTrack(vehicle, idx, lane, mesh) {
   trackApi.at(idx, _at);
   mesh = mesh || hero;
   mesh.position.copy(_at.point).addScaledVector(_at.left, lane);
-  mesh.position.y = _at.point.y + 0.27;
+  mesh.position.y = _at.point.y + (mesh.userData.rideHeight ?? 0.27);
   const yaw = Math.atan2(_at.tangent.x, _at.tangent.z);
   mesh.rotation.set(0, yaw, 0);
   if (vehicle === player) {
@@ -174,13 +182,17 @@ function stepPlayer(dt) {
     // align speed direction with heading, clamp sideways slip (arcade grip)
     player.prevIdx = player.idx;
   }
-  // soft lane-keep: the road gently pulls the car parallel when hands are off
+  // TRACK ASSIST — when the driver isn't steering, hold the racing line:
+  // align the nose to the road AND drift gently back toward the centreline,
+  // so holding forward just drives the car around the circuit.
   const sp0 = Math.abs(player.speed);
-  if (sp0 > 8 && Math.abs(s) < 0.25) {
+  if (sp0 > 5 && Math.abs(s) < 0.22) {
     const yawT = Math.atan2(_dAt.tangent.x, _dAt.tangent.z);
     let dy0 = yawT - player.heading;
     dy0 -= Math.round(dy0 / (Math.PI * 2)) * Math.PI * 2;
-    player.heading += dy0 * Math.min(1, dt * 1.6);
+    player.heading += dy0 * Math.min(1, dt * 2.4);
+    const lat = player.pos.clone().sub(_dAt.point).dot(_dAt.left);
+    player.pos.addScaledVector(_dAt.left, -lat * Math.min(1, dt * 1.0));
   }
   // steering: steer authority scales with speed, tightens slower
   const sp = sp0;
@@ -192,7 +204,7 @@ function stepPlayer(dt) {
   // snap down to asphalt height
   if (trackApi) {
     const h = trackApi.heightAt(player.idx);
-    player.pos.y += (h + 0.27 - player.pos.y) * Math.min(1, dt * 10);
+    player.pos.y += (h + (hero.userData.rideHeight ?? 0.27) - player.pos.y) * Math.min(1, dt * 10);
   }
   // gear + rpm
   for (let g = 1; g < GEARS.length; g++) {

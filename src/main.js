@@ -404,8 +404,10 @@ function hudSync() {
   }
 }
 
+let captureMode = false;
 function loop() {
   requestAnimationFrame(loop);
+  if (captureMode) return;
   const dt = Math.min(clock.getDelta(), 0.066) * timeScale;
   simStep(dt);
   hudSync();
@@ -442,6 +444,13 @@ window.__APEX = {
     return { th: +input.throttle.toFixed(2), st: +input.steer.toFixed(2), started, idx: player.idx, dLat: +dLat.toFixed(2), yaw: +Math.atan2(_dAt.tangent.x, _dAt.tangent.z).toFixed(2), hd: +player.heading.toFixed(2), pos: player.pos.toArray().map(v => +v.toFixed(1)) };
   },
   veil() { hud.liftVeil(); },
+  capture(on) { captureMode = !!on; },
+  renderFrame() {
+    simStep(0);
+    hudSync();
+    if (postApi) postApi.render();
+    else renderer.render(scene, camera);
+  },
   tick(sec = 1) {
     const h = 1 / 60;
     const steps = Math.max(1, Math.round(sec / h));

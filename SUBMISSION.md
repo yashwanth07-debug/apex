@@ -29,6 +29,7 @@ In `screenshots/`:
 3. `shot3-overtake.png` — overtake panel unlocking the WORK section
 4. `shot4-finish.png` — chequered flag + P1 podium
 5. `shot5-mobile.png` — joystick control on a phone-sized viewport
+6. `shot6-grid.png` — start grid orbit: packed grandstand + start lights
 
 ## Source code
 

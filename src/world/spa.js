@@ -1,5 +1,4 @@
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { makeGLTFLoader } from './gltf.js';
 
 const SPA_URL = `${import.meta.env.BASE_URL}models/spa.glb`;
 
@@ -10,10 +9,10 @@ const KEEP = ['grass', 'hill', 'pine', 'gbrm', 'grvl'];
 
 let _promise = null;
 
-export function loadSpaWorld() {
+export function loadSpaWorld(onProgress) {
   if (_promise) return _promise;
   _promise = new Promise((resolve, reject) => {
-    new GLTFLoader().load(
+    makeGLTFLoader().load(
       SPA_URL,
       (gltf) => {
         const scene = gltf.scene;
@@ -33,7 +32,9 @@ export function loadSpaWorld() {
         console.log(`[spa] kept ${kept} terrain meshes, hid ${hidden}`);
         resolve(scene);
       },
-      undefined,
+      (e) => {
+        if (onProgress && e.total) { try { onProgress(e.loaded / e.total); } catch {} }
+      },
       (err) => { _promise = null; reject(err); },
     );
   });

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RNG, fbm } from '../util/noise.js';
-import { SPA_TRACK_PTS } from './spa-track-data.js';
+import { SPA_TRACK_PTS, SPA_BASE_Y } from './spa-track-data.js';
 
 // ── APEX · Spa-Francorchamps 1992 layout — real circuit centreline ─────────
 // Control points + terrain heights are baked from the Spa GLB itself.
@@ -58,6 +58,19 @@ export function buildTrack(scene) {
   const grass = new THREE.Mesh(gGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0 }));
   grass.receiveShadow = true;
   group.add(grass);
+  } else {
+    // ── Spa fallback floor: a flat Ardennes-green meadow under the circuit so
+    //    the world is never an empty void while (or if) the Spa terrain loads.
+    //    It sits ~2 m below the lowest track point, so the real terrain covers it.
+    const cx = PTS.reduce((s, p) => s + p[0], 0) / PTS.length;
+    const cz = PTS.reduce((s, p) => s + p[2], 0) / PTS.length;
+    const fGeo = new THREE.CircleGeometry(5200, 72);
+    fGeo.rotateX(-Math.PI / 2);
+    fGeo.translate(cx, 0, cz);
+    const floor = new THREE.Mesh(fGeo, new THREE.MeshStandardMaterial({ color: 0x2e5230, roughness: 0.98, metalness: 0 }));
+    floor.position.y = (SPA_BASE_Y ?? 104) - 2;
+    floor.receiveShadow = true;
+    group.add(floor);
   }
 
   // ── asphalt ribbon (arclength table keeps UVs honest) ───────────────────

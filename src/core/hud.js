@@ -46,6 +46,17 @@ export class HUD {
 
   liftVeil() { $('veil').classList.add('hidden'); }
 
+  loading(msg) {
+    const p = $('loadPill'); if (!p) return;
+    p.classList.remove('hidden');
+    $('loadPillTxt').textContent = msg || 'LOADING…';
+  }
+
+  loadingDone() {
+    const p = $('loadPill'); if (!p) return;
+    p.classList.add('hidden');
+  }
+
   preloader(p, done) {
     $('pFill').style.width = `${Math.round(p * 100)}%`;
     $('pPct').textContent = String(Math.round(p * 100)).padStart(3, '0');

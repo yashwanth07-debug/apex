@@ -11,13 +11,17 @@ import { RaceAudio } from './core/audio.js';
 import { buildInput } from './core/input.js';
 import { HUD } from './core/hud.js';
 
+// ?lite=1 → no shadows / post-FX / reduced resolution: a fast path for weak
+// GPUs and embedded webviews that keeps the game smooth.
+const LITE = new URLSearchParams(location.search).has('lite');
+
 const canvas = document.getElementById('track');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !LITE, powerPreference: 'high-performance' });
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.94;
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = !LITE;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-const pixelRatio = Math.min(devicePixelRatio, 1.75);
+const pixelRatio = LITE ? 1 : Math.min(devicePixelRatio, 1.75);
 renderer.setPixelRatio(pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
 
@@ -57,28 +61,15 @@ const MAX_SPEED = 80; // ~288 km/h
 
 const confettiState = [];
 
+// ── instant boot: circuit + environment + kit car are up in ~1s, so the game
+//    is playable immediately; the heavy Spa terrain + Ferrari F1 2019 GLBs
+//    then stream in the background and swap in the moment they arrive. ──────
 async function build() {
   const steps = [
-    ['Laying asphalt', async () => {
-      try {
-        const spaScene = await loadSpaWorld();
-        scene.add(spaScene);
-        console.log('[APEX] Spa-Francorchamps world loaded');
-      } catch (err) {
-        console.warn('[APEX] Spa world unavailable — using flat terrain', err && err.message);
-      }
-      trackApi = buildTrack(scene);
-    }],
+    ['Laying asphalt', () => { trackApi = buildTrack(scene); }],
     ['Setting the scene', () => { envApi = buildEnvironment(scene, trackApi); }],
-    ['Building the grid', async () => {
-      try {
-        const gltf = await loadFerrari();
-        hero = buildFerrari(gltf);
-        console.log('[APEX] Ferrari F1 2019 loaded');
-      } catch (err) {
-        console.warn('[APEX] Ferrari failed to load — falling back to kit car', err && err.message);
-        hero = buildF1({ paint: 0xe1141e, number: 23 });
-      }
+    ['Building the grid', () => {
+      hero = buildF1({ paint: 0xe1141e, number: 23 }); // kit car until the Ferrari arrives
       scene.add(hero);
       for (let i = 0; i < RIVALS.length; i++) {
         const c = buildF1({ paint: RIVALS[i].livery, number: 20 + i * 7 });
@@ -92,17 +83,59 @@ async function build() {
       }
       resetRace();
     }],
-    ['Charging post FX', () => { postApi = buildPost(renderer, scene, camera); postApi.setSize(innerWidth, innerHeight, pixelRatio); }],
-    ['Warming tires', () => { renderer.compile(scene, camera); }],
+    ['Charging post FX', () => {
+      if (LITE) {
+        postApi = { setSpeed() {}, setSize() {}, render() { renderer.render(scene, camera); } };
+      } else {
+        try {
+          postApi = buildPost(renderer, scene, camera);
+          postApi.setSize(innerWidth, innerHeight, pixelRatio);
+        } catch (err) {
+          console.warn('[APEX] post FX unavailable — rendering direct', err && err.message);
+          postApi = { setSpeed() {}, setSize() {}, render() { renderer.render(scene, camera); } };
+        }
+      }
+    }],
   ];
   for (let i = 0; i < steps.length; i++) {
-    try { await steps[i][1](); } catch (err) { console.error(`[APEX] build "${steps[i][0] }"`, err); throw err; }
+    try { steps[i][1](); } catch (err) { console.error(`[APEX] build "${steps[i][0] }"`, err); throw err; }
     hud.preloader((i + 1) / steps.length, i === steps.length - 1);
     await new Promise(r => requestAnimationFrame(r));
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 120));
   }
   window.__APEX.ready = true;
-  loop();
+  requestAnimationFrame(loop); // publish readiness before the first (heavier) frame
+  loadEnhancements();
+}
+
+// background heavy-asset streaming with live progress
+const loads = { spa: -1, ferrari: -1 }; // -1 done, 0..1 in-flight
+function syncLoadPill() {
+  const bits = [];
+  if (loads.spa >= 0) bits.push(`SPA 1992 ${Math.round(loads.spa * 100)}%`);
+  if (loads.ferrari >= 0) bits.push(`FERRARI ${Math.round(loads.ferrari * 100)}%`);
+  if (bits.length) hud.loading(bits.join(' · '));
+  else hud.loadingDone();
+}
+function loadEnhancements() {
+  loads.spa = 0; loads.ferrari = 0; syncLoadPill();
+  loadSpaWorld((f) => { loads.spa = f; syncLoadPill(); })
+    .then((spaScene) => { scene.add(spaScene); console.log('[APEX] Spa-Francorchamps world loaded'); })
+    .catch((err) => console.warn('[APEX] Spa world unavailable — racing on the circuit alone', err && err.message))
+    .finally(() => { loads.spa = -1; syncLoadPill(); });
+  loadFerrari((f) => { loads.ferrari = f; syncLoadPill(); })
+    .then((gltf) => {
+      const f = buildFerrari(gltf);
+      f.position.copy(hero.position);
+      f.rotation.copy(hero.rotation);
+      scene.remove(hero);
+      scene.add(f);
+      hero = f;
+      if (!started) placeCarOnTrack(player, player.idx, player.off, hero);
+      console.log('[APEX] Ferrari F1 2019 loaded');
+    })
+    .catch((err) => console.warn('[APEX] Ferrari unavailable — keeping kit car', err && err.message))
+    .finally(() => { loads.ferrari = -1; syncLoadPill(); });
 }
 
 function resetRace() {

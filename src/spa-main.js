@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { makeGLTFLoader } from './world/gltf.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const BASE = import.meta.env.BASE_URL;
@@ -45,7 +45,7 @@ scene.add(sun);
 scene.add(new THREE.HemisphereLight(0xbfd8ff, 0x4c5a3a, 0.9));
 scene.add(new THREE.AmbientLight(0xffffff, 0.12));
 
-const loader = new GLTFLoader();
+const loader = makeGLTFLoader();
 const root = new THREE.Group();
 scene.add(root);
 

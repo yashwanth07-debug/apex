@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { makeGLTFLoader } from './gltf.js';
 
 const FERRARI_URL = `${import.meta.env.BASE_URL}models/ferrari_f1_2019.glb`;
 
@@ -11,14 +11,16 @@ let _gltf = null;
 let _loadPromise = null;
 
 /** Fetch (once) the Ferrari F1 2019 GLB. Cached across calls. */
-export function loadFerrari() {
+export function loadFerrari(onProgress) {
   if (_gltf) return Promise.resolve(_gltf);
   if (_loadPromise) return _loadPromise;
   _loadPromise = new Promise((resolve, reject) => {
-    new GLTFLoader().load(
+    makeGLTFLoader().load(
       FERRARI_URL,
       (gltf) => { _gltf = gltf; resolve(gltf); },
-      undefined,
+      (e) => {
+        if (onProgress && e.total) { try { onProgress(e.loaded / e.total); } catch {} }
+      },
       (err) => { _loadPromise = null; reject(err); },
     );
   });

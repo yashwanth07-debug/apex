@@ -5,7 +5,7 @@ import { buildTrack, TRACK_HALF } from './world/track.js';
 import { buildEnvironment } from './world/environment.js';
 import { buildF1 } from './world/car.js';
 import { loadFerrari, buildFerrari } from './world/ferrari.js';
-import { loadSpaWorld } from './world/spa.js';
+import { loadMonzaWorld } from './world/monza.js';
 import { buildPost } from './core/post.js';
 import { RaceAudio } from './core/audio.js';
 import { buildInput } from './core/input.js';
@@ -35,38 +35,56 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
 let started = false, finished = false;
+let autoDrive = false;
+
 const audio = new RaceAudio();
-const hud = new HUD({
+let hud;
+hud = new HUD({
   onBegin() {
     started = true;
     hud.liftVeil();
     if (envApi) envApi.lightsOut();
     try { audio.start(); } catch (e) { console.warn('[APEX] silent:', e && e.message); }
   },
+  onBeginAuto() {
+    autoDrive = true;
+    hud.setAutoDrive(true);
+  },
   onAudio: () => audio.toggle(),
   onAgain() { resetRace(); },
+  onAutoDrive() {
+    autoDrive = !autoDrive;
+    hud.setAutoDrive(autoDrive);
+    if (autoDrive && !started) {
+      hud.startRace();
+    }
+  },
 });
 
 // ── world ───────────────────────────────────────────────────────────────────
-let trackApi, envApi, postApi, hero, heroes = [], rivals = [], confetti;
-const input = buildInput({ onFirstEngage: () => { if (!started) hud.startRace(); } });
+let trackApi, envApi, postApi, hero, rivals = [], confetti;
+const input = buildInput({
+  onFirstEngage: () => {
+    if (!started) hud.startRace();
+  },
+});
 
 const player = {
   pos: new THREE.Vector3(), heading: 0, speed: 0,
   prevIdx: 0, idx: 0, off: 0, gear: 1, rpm: 0, completions: 0, lapLiveFrom: 0,
 };
 
-const GEARS = [0, 12, 22, 32, 42, 52, 62, 72, 999]; // m/s breakpoints
-const MAX_SPEED = 80; // ~288 km/h
+const GEARS = [0, 14, 25, 36, 48, 58, 68, 78, 999]; // m/s breakpoints
+const MAX_SPEED = 82; // ~295 km/h at Monza
 
 const confettiState = [];
 
 // ── instant boot: circuit + environment + kit car are up in ~1s, so the game
-//    is playable immediately; the heavy Spa terrain + Ferrari F1 2019 GLBs
+//    is playable immediately; the Monza 1998 track + Ferrari F1 2019 GLBs
 //    then stream in the background and swap in the moment they arrive. ──────
 async function build() {
   const steps = [
-    ['Laying asphalt', () => { trackApi = buildTrack(scene); }],
+    ['Laying Monza asphalt', () => { trackApi = buildTrack(scene); }],
     ['Setting the scene', () => { envApi = buildEnvironment(scene, trackApi); }],
     ['Building the grid', () => {
       hero = buildF1({ paint: 0xe1141e, number: 23 }); // kit car until the Ferrari arrives
@@ -74,11 +92,10 @@ async function build() {
       for (let i = 0; i < RIVALS.length; i++) {
         const c = buildF1({ paint: RIVALS[i].livery, number: 20 + i * 7 });
         scene.add(c);
-        // staggered start slots on the straight, next order = pass order
         rivals.push({
           mesh: c, rid: RIVALS[i].id, data: RIVALS[i],
-          idx: 0, speed: 0, baseSpeed: 13.5 + i * 1.6, // slow-moving targets
-          phase: i, done: false, lane: (i % 2 === 0 ? -1 : 1) * 2.6,
+          idx: 0, speed: 0, baseSpeed: 7.0 + i * 0.8,
+          phase: i, done: false, lane: (i % 2 === 0 ? -1 : 1) * 2.8,
         });
       }
       resetRace();
@@ -98,31 +115,36 @@ async function build() {
     }],
   ];
   for (let i = 0; i < steps.length; i++) {
-    try { steps[i][1](); } catch (err) { console.error(`[APEX] build "${steps[i][0] }"`, err); throw err; }
+    try { steps[i][1](); } catch (err) { console.error(`[APEX] build "${steps[i][0]}"`, err); throw err; }
     hud.preloader((i + 1) / steps.length, i === steps.length - 1);
     await new Promise(r => requestAnimationFrame(r));
-    await new Promise(r => setTimeout(r, 120));
+    await new Promise(r => setTimeout(r, 100));
   }
   window.__APEX.ready = true;
-  requestAnimationFrame(loop); // publish readiness before the first (heavier) frame
+  requestAnimationFrame(loop); // publish readiness before the first frame
   loadEnhancements();
 }
 
 // background heavy-asset streaming with live progress
-const loads = { spa: -1, ferrari: -1 }; // -1 done, 0..1 in-flight
+const loads = { monza: -1, ferrari: -1 }; // -1 done, 0..1 in-flight
 function syncLoadPill() {
   const bits = [];
-  if (loads.spa >= 0) bits.push(`SPA 1992 ${Math.round(loads.spa * 100)}%`);
+  if (loads.monza >= 0) bits.push(`MONZA 1998 ${Math.round(loads.monza * 100)}%`);
   if (loads.ferrari >= 0) bits.push(`FERRARI ${Math.round(loads.ferrari * 100)}%`);
   if (bits.length) hud.loading(bits.join(' · '));
   else hud.loadingDone();
 }
+
 function loadEnhancements() {
-  loads.spa = 0; loads.ferrari = 0; syncLoadPill();
-  loadSpaWorld((f) => { loads.spa = f; syncLoadPill(); })
-    .then((spaScene) => { scene.add(spaScene); console.log('[APEX] Spa-Francorchamps world loaded'); })
-    .catch((err) => console.warn('[APEX] Spa world unavailable — racing on the circuit alone', err && err.message))
-    .finally(() => { loads.spa = -1; syncLoadPill(); });
+  loads.monza = 0; loads.ferrari = 0; syncLoadPill();
+  loadMonzaWorld((f) => { loads.monza = f; syncLoadPill(); })
+    .then((monzaScene) => {
+      scene.add(monzaScene);
+      console.log('[APEX] Monza 1998 circuit world loaded');
+    })
+    .catch((err) => console.warn('[APEX] Monza world unavailable — racing on the procedural circuit', err && err.message))
+    .finally(() => { loads.monza = -1; syncLoadPill(); });
+
   loadFerrari((f) => { loads.ferrari = f; syncLoadPill(); })
     .then((gltf) => {
       const f = buildFerrari(gltf);
@@ -141,22 +163,21 @@ function loadEnhancements() {
 function resetRace() {
   finished = false;
   hud.hideFinish();
-  const step = 26; // index gap between grid slots on the first straight
   player.idx = 30; player.prevIdx = 30;
-  const stepBack = 23;
   placeCarOnTrack(player, player.idx, 2.2, hero); // red car, right row
   player.speed = 0; player.heading = player.heading || 0;
-  // rivals line up ahead of player, closest = Section 1
+
+  // Stagger the 6 rivals around the Monza circuit for optimal pacing
+  const rivalIndices = [140, 370, 640, 920, 1200, 1450];
   rivals.forEach((r, i) => {
     r.done = false; r.speed = 0;
-    r.idx = player.idx + step * (i + 1) * 4 + 60 + i * 22;
+    r.idx = rivalIndices[i] || (player.idx + 150 * (i + 1));
     r.targetSpeed = r.baseSpeed;
     placeCarOnTrack(r, r.idx, r.lane, r.mesh);
   });
   rivals.sort((a, b) => a.idx - b.idx);
   player.completions = 0;
   hud.initRail();
-  // rail reset
   document.querySelectorAll('#rail .r-stop').forEach(el => el.classList.remove('done', 'next'));
   hud.initRail();
 }
@@ -183,29 +204,81 @@ function placeCarOnTrack(vehicle, idx, lane, mesh) {
 // ── drive model ────────────────────────────────────────────────────────────
 const _dAt = {};
 const _aheadAt = {};
+const _cornerAt = {};
+
 function stepPlayer(dt) {
-  const t = input.throttle, s = input.steer;
+  let t = input.throttle;
+  let s = input.steer;
+
+  // ── AUTO DRIVE AI CONTROLLER ─────────────────────────────────────────────
+  if (autoDrive) {
+    // 1. Curvature lookahead over the next 160m (anticipate braking before turns)
+    let maxTurnAngle = 0;
+    trackApi.at(player.idx, _dAt);
+    for (let offset = 6; offset <= 45; offset += 3) {
+      trackApi.at(player.idx + offset, _cornerAt);
+      const ang = _dAt.tangent.angleTo(_cornerAt.tangent);
+      if (ang > maxTurnAngle) maxTurnAngle = ang;
+    }
+
+    let targetSpeed = 80; // ~288 km/h on Monza straights
+    if (maxTurnAngle > 0.6) targetSpeed = 36; // tight chicane (Variante del Rettifilo)
+    else if (maxTurnAngle > 0.35) targetSpeed = 48; // medium chicane (Variante della Roggia)
+    else if (maxTurnAngle > 0.18) targetSpeed = 62; // sweeping corners
+
+    if (player.speed < targetSpeed - 1.5) {
+      t = 1.0;
+    } else if (player.speed > targetSpeed + 2.5) {
+      t = -0.95; // firm braking
+    } else {
+      t = 0.25;
+    }
+
+    // 2. Overtake line selection (steer into clear lane when approaching rival)
+    let targetLane = 0;
+    const n = trackApi.pts.length;
+    const nextRival = rivals.find(r => !r.done);
+    if (nextRival) {
+      let rIdxDiff = (nextRival.idx - player.idx) % n;
+      if (rIdxDiff < 0) rIdxDiff += n;
+      if (rIdxDiff < 140) {
+        targetLane = nextRival.lane > 0 ? -2.4 : 2.4;
+      }
+    }
+
+    const sp = Math.abs(player.speed);
+    const lookAheadPts = Math.max(5, Math.round(sp * 0.28));
+    trackApi.at(player.idx + lookAheadPts, _aheadAt);
+
+    const targetPoint = _aheadAt.point.clone().addScaledVector(_aheadAt.left, targetLane);
+    const targetYaw = Math.atan2(targetPoint.x - player.pos.x, targetPoint.z - player.pos.z);
+    let dy = targetYaw - player.heading;
+    dy -= Math.round(dy / (Math.PI * 2)) * Math.PI * 2;
+    player.heading += dy * Math.min(1, dt * 9.5);
+  }
+
   // acceleration curve: strong launch, gentle top
   const fwd = player.speed >= -0.5 ? 1 : -1;
   let accel;
   if (t > 0) {
     const curving = 1.15 - Math.max(0, Math.min(1, Math.abs(player.speed) / MAX_SPEED)) * 0.55;
-    accel = 17.5 * t * curving * fwd;
+    accel = 19.5 * t * curving * fwd;
   } else {
-    accel = t * (player.speed > 0.5 ? 34 : 12); // hard brake, gentle reverse
+    accel = t * (player.speed > 0.5 ? 46 : 14); // hard brake, gentle reverse
   }
   // rolling resistance + aero drag
-  accel -= Math.sign(player.speed) * (0.4 + player.speed * player.speed * 0.00038);
+  accel -= Math.sign(player.speed) * (0.35 + player.speed * player.speed * 0.00032);
   player.speed += accel * dt;
+
   // off-track: gravel soundwall of physics
   let offTrack = false;
   if (trackApi) {
     player.idx = trackApi.nearest(player.prevIdx, player.pos);
     trackApi.at(player.idx, _dAt);
-    const lat = _dAt.left.clone().multiplyScalar(-1);
     const dLat = player.pos.clone().sub(_dAt.point).dot(_dAt.left);
     const absLat = Math.abs(dLat);
     offTrack = absLat > TRACK_HALF + 0.4;
+
     // wall containment: slide along the barrier, bleeding off speed gently
     if (absLat > TRACK_HALF + 4.2) {
       const clampd = Math.sign(dLat) * (TRACK_HALF + 4.2);
@@ -223,59 +296,74 @@ function stepPlayer(dt) {
       if (player.speed > cap) player.speed = THREE.MathUtils.clamp(player.speed - 22 * dt, cap, 999);
       player.speed -= player.speed * 0.8 * dt;
     }
-    // align speed direction with heading, clamp sideways slip (arcade grip)
+    if (autoDrive) {
+      // Lateral centering assist in auto drive
+      let targetLane = 0;
+      const nextRival = rivals.find(r => !r.done);
+      if (nextRival) {
+        let rIdxDiff = (nextRival.idx - player.idx) % trackApi.pts.length;
+        if (rIdxDiff < 0) rIdxDiff += trackApi.pts.length;
+        if (rIdxDiff < 140) targetLane = nextRival.lane > 0 ? -2.4 : 2.4;
+      }
+      player.pos.addScaledVector(_dAt.left, -(dLat - targetLane) * Math.min(1, dt * 3.5));
+    }
     player.prevIdx = player.idx;
   }
-  // TRACK ASSIST — when the driver isn't steering, drive the circuit for them:
-  // aim at a point AHEAD on the racing line (proactive cornering) and drift
-  // back toward the centreline, so holding forward just follows the road.
+
+  // MANUAL TRACK ASSIST (when manual driving and not steering hard)
   const sp0 = Math.abs(player.speed);
-  if (sp0 > 5 && Math.abs(s) < 0.22) {
-    const look = Math.round(6 + sp0 * 1.6);
-    trackApi.at(player.idx + look, _aheadAt);
-    const yawT = Math.atan2(_aheadAt.point.x - player.pos.x, _aheadAt.point.z - player.pos.z);
-    let dy0 = yawT - player.heading;
-    dy0 -= Math.round(dy0 / (Math.PI * 2)) * Math.PI * 2;
-    player.heading += dy0 * Math.min(1, dt * 3.2);
-    const lat = player.pos.clone().sub(_dAt.point).dot(_dAt.left);
-    player.pos.addScaledVector(_dAt.left, -lat * Math.min(1, dt * 1.4));
+  if (!autoDrive) {
+    if (sp0 > 5 && Math.abs(s) < 0.22) {
+      const look = Math.round(6 + sp0 * 1.6);
+      trackApi.at(player.idx + look, _aheadAt);
+      const yawT = Math.atan2(_aheadAt.point.x - player.pos.x, _aheadAt.point.z - player.pos.z);
+      let dy0 = yawT - player.heading;
+      dy0 -= Math.round(dy0 / (Math.PI * 2)) * Math.PI * 2;
+      player.heading += dy0 * Math.min(1, dt * 3.2);
+      const lat = player.pos.clone().sub(_dAt.point).dot(_dAt.left);
+      player.pos.addScaledVector(_dAt.left, -lat * Math.min(1, dt * 1.4));
+    }
+
+    // manual steering
+    const sp = sp0;
+    const steerAuthority = (0.95 / (1 + sp * 0.05)) * Math.min(1, sp / 5);
+    player.heading -= s * steerAuthority * 2.3 * dt * Math.sign(player.speed || 1);
   }
-  // steering: steer authority scales with speed, tightens slower
-  const sp = sp0;
-  const steerAuthority = (0.9 / (1 + sp * 0.055)) * Math.min(1, sp / 6);
-  player.heading -= s * steerAuthority * 2.1 * dt * Math.sign(player.speed || 1);
+
   const dirX = Math.sin(player.heading), dirZ = Math.cos(player.heading);
   player.pos.x += dirX * player.speed * dt;
   player.pos.z += dirZ * player.speed * dt;
+
   // snap down to asphalt height
   if (trackApi) {
     const h = trackApi.heightAt(player.idx);
     player.pos.y += (h + (hero.userData.rideHeight ?? 0.27) - player.pos.y) * Math.min(1, dt * 10);
   }
+
   // gear + rpm
   for (let g = 1; g < GEARS.length; g++) {
     if (Math.abs(player.speed) < GEARS[g]) { player.gear = Math.max(1, g); break; }
   }
   const lo = GEARS[player.gear - 1], hi = GEARS[player.gear];
   player.rpm = THREE.MathUtils.clamp((Math.abs(player.speed) - lo) / Math.max(1, hi - lo), 0, 1);
+
   return offTrack;
 }
 
-// ── rivals follow the racing line slowly ────────────────────────────────────
+// ── rivals: follow the racing line ──────────────────────────────────────────
 function stepRivals(dt, t) {
   const n = trackApi.pts.length;
   for (const r of rivals) {
     r.idx = r.idx + (r.targetSpeed * dt / trackApi.LEN) * n;
     trackApi.at(r.idx, _dAt);
-    r.mesh.position.copy(_dAt.point).addScaledVector(_dAt.left, r.lane + Math.sin(t * 0.7 + r.phase) * 0.7);
+    r.mesh.position.copy(_dAt.point).addScaledVector(_dAt.left, r.lane + Math.sin(t * 0.7 + r.phase) * 0.5);
     r.mesh.position.y = _dAt.point.y + 0.27;
     const yaw = Math.atan2(_dAt.tangent.x, _dAt.tangent.z);
     r.mesh.rotation.set(0, yaw, 0);
     r.userData = r.userData || {};
     const rot = r.targetSpeed * dt / 0.34;
     r.mesh.userData.spin(rot, 0);
-    _dAt.point.distanceTo ? null : null;
-    r.worldT = r.idx / n; // for overtake detection
+    r.worldT = r.idx / n;
   }
 }
 
@@ -287,20 +375,18 @@ function checkOvertakes() {
   for (const r of rivals) {
     if (r.done) continue;
     const rT = ((r.idx % n) + n) % n / n;
-    // relative offset centered
     let d = rT - pT;
     d -= Math.round(d);
-    if (Math.abs(d) < 0.0045 && !finished && player.speed > 14) {
-      // rival must actually be AHEAD in our travel direction when proximity hits
+    if (Math.abs(d) < 0.006 && !finished && player.speed > 12) {
       const dx = r.mesh.position.x - player.pos.x;
       const dz = r.mesh.position.z - player.pos.z;
       const hdX = Math.sin(player.heading), hdZ = Math.cos(player.heading);
-      const ahead = dx * hdX + dz * hdZ > -4;
-      if (dx * dx + dz * dz < 60 * 60 && ahead) {
+      const ahead = dx * hdX + dz * hdZ > -8;
+      if (dx * dx + dz * dz < 80 * 80 && ahead) {
         r.done = true;
         hud.markRival(r.rid);
         hud.openPanel(r.data);
-        hud.toast(`OVERTAKE · ${r.data.tag} (${rivals.filter(v => v.done).length}/6)`, 1800);
+        hud.toast(`OVERTAKE · ${r.data.tag} (${rivals.filter(v => v.done).length}/6)`, 2000);
         audio.shift();
         try { audio.cheer(); } catch {}
       }
@@ -314,18 +400,17 @@ function checkFinish() {
   const pT = player.idx / n;
   for (const c of [player]) {
     if (!c._lastT) { c._lastT = pT; return; }
-    // wrap detection: t fell from >0.9 to <0.1
-    if (c._lastT > 0.88 && pT < 0.12 && !finished) {
+    // wrap detection: t fell from >0.86 to <0.14
+    if (c._lastT > 0.86 && pT < 0.14 && !finished) {
       player.completions++;
       const allPassed = rivals.every(r => r.done);
-      if (allPassed) {
+      if (allPassed || player.completions >= 1) {
+        rivals.forEach(r => { r.done = true; hud.markRival(r.rid); });
         finished = true;
         audio.horn();
         launchConfetti();
-        setTimeout(() => hud.showFinish(), 1400);
+        setTimeout(() => hud.showFinish(), 1200);
         document.querySelectorAll('#rail .r-stop').forEach(el => el.classList.add('done'));
-      } else if (player.completions === 1) {
-        hud.toast('LAP 2 · HUNT THE REMAINING CARS', 2200);
       }
     }
     c._lastT = pT;
@@ -385,7 +470,6 @@ function stepCamera(dt, off) {
     player.pos.z - cz * backDist,
   );
   camPos.lerp(ideal, Math.min(1, dt * 5.5));
-  // shake: speed shimmer + offtrack rumble
   const shake = (off.shake ? 0.16 : 0.03) * (0.5 + Math.abs(player.speed) / MAX_SPEED);
   camPos.x += Math.sin(globalT * 31) * shake;
   camPos.y += Math.cos(globalT * 38) * shake * 0.6;
@@ -403,9 +487,9 @@ function angLerp(target, current, k) {
 
 // ── HUD zone names per progress ─────────────────────────────────────────────
 function zoneFor(pT) {
-  if (pT < 0.05) return ['FORMATION', 'the field ahead — hunt them down'];
+  if (pT < 0.05) return ['RETTIFILO TRIBUNE', 'Monza pit straight — launch into Variante'];
   const next = rivals.find(r => !r.done);
-  if (!next) return ['FINAL RUN', 'chequer is out — bring it home'];
+  if (!next) return ['PARABOLICA RUN', 'Chequered flag ahead — full throttle to the line'];
   return [`HUNTING ${next.data.tag}`, `${next.data.carTag} · section ${rivals.filter(r => r.done).length + 1} of 6`];
 }
 
@@ -415,10 +499,11 @@ function dressHero(dt, off) {
   hero.userData.spin(rot, -input.steer * 0.8 * Math.min(1, Math.abs(player.speed) / 20));
   hero.position.copy(player.pos);
   hero.rotation.y = player.heading;
-  // body pitch/roll under load
   hero.rotation.x = THREE.MathUtils.clamp(-input.throttle * Math.abs(player.speed) * 0.0009 - (player.speed > 0 ? 0.006 : 0), -0.05, 0.01);
   hero.rotation.z = THREE.MathUtils.clamp(input.steer * Math.abs(player.speed) * 0.0012, -0.06, 0.06);
-  hero.userData.shimmer.material.opacity = Math.min(0.7, Math.abs(input.throttle) * Math.abs(player.speed) * 0.015 + 0.08);
+  if (hero.userData.shimmer) {
+    hero.userData.shimmer.material.opacity = Math.min(0.7, Math.abs(input.throttle) * Math.abs(player.speed) * 0.015 + 0.08);
+  }
 }
 
 // ── main loop ───────────────────────────────────────────────────────────────
@@ -428,6 +513,7 @@ let offNoise = { shake: false };
 
 function simStep(dt) {
   tSim += dt;
+  globalT = tSim;
   const t = tSim;
   let off = false;
   if (trackApi) {
@@ -487,6 +573,11 @@ window.__APEX = {
   ready: false,
   slowmo(x) { timeScale = x; },
   start() { hud.startRace(); },
+  autoDrive(on = true) {
+    autoDrive = !!on;
+    hud.setAutoDrive(autoDrive);
+    if (autoDrive && !started) hud.startRace();
+  },
   setThrottle(v) { input.throttle = v; },
   setSteer(v) { input.steer = v; },
   teleportFrac(f) {
@@ -495,7 +586,7 @@ window.__APEX = {
     placeCarOnTrack(player, player.idx, 2.2, hero);
     player.speed = 44;
   },
-  state() { return { speed: player.speed, pT: player.idx / trackApi.pts.length, finished, done: rivals.filter(r => r.done).length }; },
+  state() { return { speed: player.speed, pT: player.idx / trackApi.pts.length, finished, done: rivals.filter(r => r.done).length, autoDrive }; },
   debug() {
     trackApi.at(player.idx, _dAt);
     const dLat = player.pos.clone().sub(_dAt.point).dot(_dAt.left);

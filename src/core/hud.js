@@ -3,10 +3,10 @@ import { RIVALS, PILOT } from '../data.js';
 const $ = (id) => document.getElementById(id);
 
 export class HUD {
-  constructor({ onBegin, onAudio, onAgain } = {}) {
+  constructor({ onBegin, onAudio, onAgain, onAutoDrive, onBeginAuto } = {}) {
     this._lastTxt = {};
     $('igBody').textContent = PILOT.intro;
-    $('heroSub').textContent = 'Six rivals ahead. Every car you catch carries a part of who I am.';
+    $('heroSub').textContent = 'Six rivals ahead around Monza. Every car you catch carries a part of who I am.';
     $('fTitle').textContent = PILOT.finishTitle;
     $('fSub').textContent = PILOT.finishSub;
     $('fNote').textContent = PILOT.finishNote;
@@ -33,15 +33,41 @@ export class HUD {
     this.startRace = dive;
     $('begin').addEventListener('click', dive);
     $('begin').addEventListener('pointerdown', dive);
+
+    const beginAuto = () => {
+      if (onBeginAuto) onBeginAuto();
+      dive();
+    };
+    const beginAutoBtn = $('beginAuto');
+    if (beginAutoBtn) {
+      beginAutoBtn.addEventListener('click', beginAuto);
+      beginAutoBtn.addEventListener('pointerdown', beginAuto);
+    }
+
     $('audioBtn').addEventListener('click', () => {
       const on = onAudio();
       $('audioBtn').classList.toggle('off', !on);
       $('audioBtn').innerHTML = `<i></i>PIT RADIO&nbsp;${on ? 'ON' : 'OFF'}`;
     });
+
+    const autoDriveBtn = $('autoDriveBtn');
+    if (autoDriveBtn) {
+      autoDriveBtn.addEventListener('click', () => {
+        if (onAutoDrive) onAutoDrive();
+      });
+    }
+
     $('zClose').addEventListener('click', () => $('panel').classList.add('hidden'));
     $('again').addEventListener('click', () => onAgain());
     this._toastTimer = null;
     this._panelTimer = null;
+  }
+
+  setAutoDrive(active) {
+    const btn = $('autoDriveBtn');
+    if (!btn) return;
+    btn.classList.toggle('active', !!active);
+    btn.innerHTML = `<i></i>AUTO DRIVE:&nbsp;<b>${active ? 'ON' : 'OFF'}</b>`;
   }
 
   liftVeil() { $('veil').classList.add('hidden'); }
@@ -60,7 +86,7 @@ export class HUD {
   preloader(p, done) {
     $('pFill').style.width = `${Math.round(p * 100)}%`;
     $('pPct').textContent = String(Math.round(p * 100)).padStart(3, '0');
-    const logs = ['CONNECTING THE PIT WALL…', 'PAINTING SIX RIVAL LIVERIES…', 'CHARGING THE BATTERY…', 'BOLTING ON FRESH RUBBER…', 'GREEN LIGHT IN 3…2…'];
+    const logs = ['CONNECTING MONZA PIT WALL…', 'PAINTING SIX RIVAL LIVERIES…', 'CHARGING THE BATTERY…', 'BOLTING ON FRESH SOFT TYRES…', 'GREEN LIGHT IN 3…2…'];
     $('pLog').textContent = logs[Math.min(logs.length - 1, Math.floor(p * logs.length))];
     if (done) setTimeout(() => {
       $('preloader').classList.add('hidden');
@@ -121,7 +147,6 @@ export class HUD {
     this._next();
   }
   _next() {
-    // first not-done gets "next"
     const stops = [...document.querySelectorAll('#rail .r-stop')];
     for (const el of stops) if (!el.classList.contains('done')) { el.classList.add('next'); return; }
   }

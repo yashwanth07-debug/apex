@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>APEX — A Portfolio at 300 km/h · Yashwanth K.</title>
-  <meta name="description" content="APEX Grand Prix — a 3D portfolio disguised as an F1 race. Hold the throttle, overtake six rivals, read the story they carry. Procedural Three.js, zero external assets." />
-  <meta property="og:title" content="APEX — A Portfolio at 300 km/h" />
-  <meta property="og:description" content="One lap, six overtakes, racing portions of a career — drive the circuit yourself." />
+  <title>APEX — A Portfolio at 300 km/h · Monza 1998 · Yashwanth K.</title>
+  <meta name="description" content="APEX Grand Prix — a 3D portfolio disguised as an F1 race around the 1998 Monza Circuit. Drive manually or toggle Auto Drive to hunt down six rivals and cross the finish line." />
+  <meta property="og:title" content="APEX — Monza Grand Prix Portfolio" />
+  <meta property="og:description" content="One lap around Monza 1998, six overtakes, Ferrari F1 2019 — drive or sit back with Auto Drive." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://yashwanth07-debug.github.io/apex/" />
   <meta property="og:image" content="https://yashwanth07-debug.github.io/apex/og.jpg" />
@@ -27,7 +27,7 @@
   <!-- PRELOADER -->
   <div id="preloader">
     <div class="p-box">
-      <div class="p-eyebrow">YKP RACING · SPA-FRANCORCHAMPS 1992</div>
+      <div class="p-eyebrow">YKP RACING · MONZA GRAND PRIX 1998</div>
       <h1>APEX<span>·GRAND PRIX</span></h1>
       <div class="p-bar"><div id="pFill"></div><b id="pPct">000</b></div>
       <div id="pLog">CONNECTING THE PIT WALL…</div>
@@ -38,26 +38,32 @@
   <div id="ignition" class="hidden">
     <div class="ig-card">
       <div class="ig-eyebrow">YKP RACING · RACE PERMIT NO. 04</div>
-      <h2 class="ig-title">FORM UP — <span>START YOUR ENGINE</span></h2>
+      <h2 class="ig-title">MONZA 1998 — <span>START YOUR ENGINE</span></h2>
       <p class="ig-sub" id="igBody"></p>
-      <button id="begin">LIGHTS OUT & GO ▸</button>
-      <p class="ig-hint">HOLD THROTTLE FORWARD TO DRIVE · PULL BACK TO BRAKE · STEER LEFT & RIGHT · W/A/S/D WORKS TOO · SOUND ON</p>
+      <div class="ig-actions">
+        <button id="begin">LIGHTS OUT & GO ▸</button>
+        <button id="beginAuto" class="btn-sec">🤖 AUTO DRIVE ▸</button>
+      </div>
+      <p class="ig-hint">HOLD THROTTLE FORWARD TO DRIVE · PULL BACK TO BRAKE · STEER LEFT & RIGHT · W/A/S/D · CLICK AUTO DRIVE TO WATCH THE AI LAP · PRESS [T] TO TOGGLE AUTO DRIVE · SOUND ON</p>
     </div>
   </div>
 
   <!-- HERO (idles before start) -->
   <div id="hero" class="hidden">
-    <div class="h-kicker">P23 · YASHWANTH K. · SPA 1992</div>
+    <div class="h-kicker">P23 · YASHWANTH K. · MONZA 1998</div>
     <h1>APEX</h1>
-    <p id="heroSub">Six rivals ahead. Every car you catch carries a part of who I am.</p>
+    <p id="heroSub">Six rivals ahead around Monza. Every car you catch carries a part of who I am.</p>
     <div class="h-tag">FORMULA-STYLE · BUILT IN THE BROWSER</div>
   </div>
 
   <!-- HUD -->
   <div id="hud" class="hidden">
-    <header id="brand"><b>APEX</b><span>GP · SPA-FRANCORCHAMPS · 1992</span></header>
+    <header id="brand"><b>APEX</b><span>GP · MONZA CIRCUIT · 1998</span></header>
 
-    <button id="audioBtn" aria-label="Toggle audio"><i></i>PIT RADIO&nbsp;ON</button>
+    <div id="hudButtons">
+      <button id="autoDriveBtn" class="hud-btn" aria-label="Toggle Auto Drive"><i></i>AUTO DRIVE:&nbsp;<b>OFF</b></button>
+      <button id="audioBtn" class="hud-btn" aria-label="Toggle audio"><i></i>PIT RADIO&nbsp;ON</button>
+    </div>
 
     <nav id="rail" aria-label="Overtake progress"></nav>
 
@@ -74,7 +80,7 @@
     <div id="loadPill" class="hidden"><span id="loadPillTxt">LOADING…</span></div>
 
     <footer id="marquee">
-      <span>3D WEBSITES HACKATHON</span><span>ROUND 04 · APEX GRAND PRIX</span><span>MADE WITH THREE.JS · GLSL · WEBAUDIO</span><span>ZERO EXTERNAL ASSETS</span>
+      <span>3D WEBSITES HACKATHON</span><span>ROUND 04 · APEX GRAND PRIX</span><span>MONZA 1998 CIRCUIT · FERRARI F1</span><span>THREE.JS · GLSL · WEBAUDIO</span>
     </footer>
   </div>
 
@@ -112,13 +118,13 @@
       <div id="joyKnob"></div>
     </div>
     <div class="joy-btn" id="joyBrake">▼<span>BRAKE</span></div>
-    <div id="joyHint">HOLD FORWARD = THROTTLE · LEFT/RIGHT = STEER</div>
+    <div id="joyHint">HOLD FORWARD = THROTTLE · LEFT/RIGHT = STEER · [T] = AUTO DRIVE</div>
   </div>
 
   <canvas id="track"></canvas>
 
   <!-- 3D asset viewer shortcut -->
-  <a id="assetViewer" href="./spa.html" title="View the Ferrari F1 2019 &amp; Spa-Francorchamps 1992 in 3D"
+  <a id="assetViewer" href="./spa.html" title="View the Ferrari F1 2019 &amp; Monza Circuit 1998 in 3D"
      style="position:fixed;left:16px;bottom:16px;z-index:90;display:inline-flex;align-items:center;gap:8px;
             padding:9px 14px;border:1px solid #2a323c;border-radius:10px;background:rgba(14,17,21,0.72);
             color:#c8d2dc;font-size:11px;letter-spacing:1.5px;text-decoration:none;backdrop-filter:blur(6px);">🏎️ 3D ASSETS</a>

@@ -3,10 +3,10 @@ export const PILOT = {
   name: 'Yashwanth K.',
   call: 'P23 · TEAM FRONTEND',
   tagline: 'A portfolio is a race: flat-out from the green light, or forget it.',
-  intro: 'Strap in. This paddock rents itself to a developer who treats the browser as a circuit — every overtake is a section of his story.',
-  introSub: 'HOLD THE THROTTLE STICK FORWARD TO LAUNCH',
+  intro: 'Strap in at Autodromo Nazionale Monza. This paddock rents itself to a developer who treats the browser as a circuit — every overtake is a section of his story.',
+  introSub: 'HOLD THROTTLE FORWARD OR TOGGLE AUTO DRIVE TO LAUNCH',
   finishTitle: 'CHEQUERED FLAG',
-  finishSub: 'Race complete — one lap of an F1 circuit is one lap of my career. Podium time.',
+  finishSub: 'Race complete — one flying lap around Monza 1998 is one lap of my career. Podium time.',
   finishNote: 'Every rival you passed carried a chapter of this portfolio. Revisit them, or run the lap again — fresh rubber, same hunger.',
 };
 
@@ -18,7 +18,7 @@ export const RIVALS = [
     sub: 'Who is driving the red car?',
     body: `I'm Yashwanth — a developer who builds 3D worlds in the browser.
       This circuit isn't a template: it's the fourth immersive site in a
-      touring series — sky, space, deep ocean… and now, a Formula 1 paddock.`,
+      touring series — sky, space, deep ocean… and now, a Formula 1 paddock at Monza.`,
     facts: [
       ['ROLE', 'creative developer · 3D engineer'],
       ['HOME CIRCUIT', 'Hyderabad, India'],
@@ -46,7 +46,7 @@ export const RIVALS = [
       ['STARJET', 'Interplanetary 3D voyage — space-jet cockpit, five GLSL planets', 'https://yashwanth07-debug.github.io/starjet-portfolio/'],
       ['AURELIA', 'Sky-archipelago flight — floating worlds, airship chase-cam', 'https://yashwanth07-debug.github.io/aurelia-3d/'],
       ['ABYSSA', 'One scroll to the bottom of the ocean — 10,935 m of procedurally built sea', 'https://yashwanth07-debug.github.io/abyssa/'],
-      ['THIS CAR', 'APEX — the circuit you are driving right now', 'https://github.com/yashwanth07-debug/apex'],
+      ['THIS CAR', 'APEX — the Monza GP circuit you are driving right now', 'https://github.com/yashwanth07-debug/apex'],
     ],
   },
   {

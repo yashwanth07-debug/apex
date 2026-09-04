@@ -49,32 +49,32 @@ const loader = makeGLTFLoader();
 const root = new THREE.Group();
 scene.add(root);
 
-let spaModel = null;
+let monzaModel = null;
 let ferrari = null;
-let spaLoaded = false, ferrariLoaded = false;
+let monzaLoaded = false, ferrariLoaded = false;
 
 function updateStatus() {
-  if (spaLoaded && ferrariLoaded) {
-    statusEl.textContent = 'Both assets loaded — Ferrari F1 2019 & the 1992 Spa circuit.';
-  } else if (spaLoaded) {
+  if (monzaLoaded && ferrariLoaded) {
+    statusEl.textContent = 'Both assets loaded — Ferrari F1 2019 & the 1998 Monza circuit.';
+  } else if (monzaLoaded) {
     statusEl.textContent = 'Circuit loaded — loading the Ferrari F1 2019…';
   }
 }
 
 // ── load the circuit ───────────────────────────────────────────────────────
 loader.load(
-  `${BASE}models/spa.glb`,
+  `${BASE}models/monza.glb`,
   (gltf) => {
-    spaModel = gltf.scene;
-    spaModel.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    root.add(spaModel);
-    spaLoaded = true;
+    monzaModel = gltf.scene;
+    monzaModel.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    root.add(monzaModel);
+    monzaLoaded = true;
 
-    const box = new THREE.Box3().setFromObject(spaModel);
+    const box = new THREE.Box3().setFromObject(monzaModel);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
     // recentre horizontally so orbiting feels natural
-    spaModel.position.set(-center.x, 0, -center.z);
+    monzaModel.position.set(-center.x, 0, -center.z);
     controls.target.set(0, center.y, 0);
     const d = Math.max(size.x, size.z);
     camera.position.set(d * 0.45, center.y + d * 0.22, d * 0.62);
@@ -105,16 +105,16 @@ function loadFerrari(targetXZ) {
       ferrari.position.set(-fc.x * s, -fb.min.y * s, -fc.z * s);
 
       // drop it onto the circuit surface
-      if (spaModel) {
+      if (monzaModel) {
         const raycaster = new THREE.Raycaster();
         raycaster.set(new THREE.Vector3(targetXZ.x, 8000, targetXZ.y), new THREE.Vector3(0, -1, 0));
         raycaster.far = 40000;
-        const hits = raycaster.intersectObject(spaModel, true);
+        const hits = raycaster.intersectObject(monzaModel, true);
         if (hits.length) {
           const p = hits[0].point;
           ferrari.position.set(p.x, p.y, p.z);
         } else {
-          const box = new THREE.Box3().setFromObject(spaModel);
+          const box = new THREE.Box3().setFromObject(monzaModel);
           ferrari.position.y = box.getCenter(new THREE.Vector3()).y;
         }
       }
@@ -127,21 +127,21 @@ function loadFerrari(targetXZ) {
     (err) => {
       ferrariLoaded = true;
       updateStatus();
-      console.warn('[spa] ferrari load failed', err && err.message);
+      console.warn('[monza] ferrari load failed', err && err.message);
     },
   );
 }
 
 // ── UI toggles ─────────────────────────────────────────────────────────────
 btnSpa.addEventListener('click', () => {
-  if (spaModel) spaModel.visible = !spaModel.visible;
-  btnSpa.classList.toggle('active', spaModel ? spaModel.visible : false);
+  if (monzaModel) monzaModel.visible = !monzaModel.visible;
+  btnSpa.classList.toggle('active', monzaModel ? monzaModel.visible : false);
 });
 btnFerrari.addEventListener('click', () => {
   if (!ferrari) return;
   ferrari.visible = !ferrari.visible;
   btnFerrari.classList.toggle('active', ferrari.visible);
-  if (ferrari.visible && spaModel) {
+  if (ferrari.visible && monzaModel) {
     const box = new THREE.Box3().setFromObject(ferrari);
     const c = box.getCenter(new THREE.Vector3());
     controls.target.lerp(c, 0.5);

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RNG } from '../util/noise.js';
-import { TRACK_HALF, SPA_MODE } from './track.js';
+import { TRACK_HALF, MONZA_MODE } from './track.js';
 
 // ── sky, lighting, finish gantry, trackside props ───────────────────────────
 export function buildEnvironment(scene, trackApi, onReady) {
@@ -8,7 +8,7 @@ export function buildEnvironment(scene, trackApi, onReady) {
 
   // sky dome with sun + warm horizon
   const sky = new THREE.Mesh(
-    new THREE.SphereGeometry(SPA_MODE ? 26000 : 3200, 32, 20),
+    new THREE.SphereGeometry(MONZA_MODE ? 32000 : 3200, 32, 20),
     new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false,
       uniforms: { uTime: { value: 0 } },
@@ -45,7 +45,7 @@ export function buildEnvironment(scene, trackApi, onReady) {
   scene.add(sky);
 
   // lighting
-  scene.fog = new THREE.Fog(0xc7d6e4, SPA_MODE ? 2200 : 760, SPA_MODE ? 24000 : 3200);
+  scene.fog = new THREE.Fog(0xc7d6e4, MONZA_MODE ? 2400 : 760, MONZA_MODE ? 28000 : 3200);
   const sun = new THREE.DirectionalLight(0xfff3e0, 3.1);
   sun.position.set(180, 240, 150);
   sun.castShadow = true;
@@ -64,19 +64,17 @@ export function buildEnvironment(scene, trackApi, onReady) {
 
   const anim = { sky, sun };
 
-  // ── trackside props (no spectators / grandstands — clean circuit) ────────
+  // ── trackside props ───────────────────────────────────────────────────────
   const tracksideGroup = new THREE.Group();
   scene.add(tracksideGroup);
 
   // finish-line gantry over start
   anim.startBulbs = addFinishSignal(trackApi, tracksideGroup) || [];
-  // marshal posts + tyre walls + decent ground props
   addMarshals(tracksideGroup, rng);
-  if (!SPA_MODE) addTrees(tracksideGroup, rng); // Spa ships its own forest
+  if (!MONZA_MODE) addTrees(tracksideGroup, rng); // Monza ships its own park & forest
 
   return {
     anim,
-    // keep the sun's shadow box glued to the hero, shadow follows the action
     followShadow(carPos, tangent) {
       sun.position.set(carPos.x + 180, 240, carPos.z + 150);
       sun.target.position.copy(carPos);
@@ -94,8 +92,7 @@ export function buildEnvironment(scene, trackApi, onReady) {
 }
 
 function addFinishSignal(trackApi, parent) {
-  const n = trackApi.pts.length;
-  const i0 = 2;
+  const i0 = 6;
   const p = trackApi.pts[i0], p2 = trackApi.pts[i0 + 6];
   const tan = new THREE.Vector3().subVectors(p2, p).normalize();
   const left = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), tan).normalize();
@@ -122,13 +119,10 @@ function addFinishSignal(trackApi, parent) {
 }
 
 function addMarshals(parent, rng) {
-  const mat = new THREE.MeshStandardMaterial({ color: 0xf2642a, roughness: 0.8 });
-  const roofM = new THREE.MeshStandardMaterial({ color: 0xced6dc, roughness: 0.7 });
-  const a = parent;
+  // marshal stands
 }
 
 function addTrees(parent, rng) {
-  // stylised pines ringing the infield — hint of green depth past the rails
   const treeGeo = new THREE.ConeGeometry(8, 24, 7);
   const treeMat = new THREE.MeshStandardMaterial({ color: 0x1f4526, roughness: 0.95 });
   const trunkGeo = new THREE.CylinderGeometry(0.9, 1.1, 5, 6);

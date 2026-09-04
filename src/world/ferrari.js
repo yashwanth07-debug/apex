@@ -112,7 +112,7 @@ export function buildFerrari(gltf) {
 
   car.userData = {
     wheels,
-    rideHeight: 0,                       // origin already sits on the ground
+    rideHeight: 0.06,                    // sit just on top of the asphalt ribbon
     shimmer,
     setLivery() { /* livery is baked into the model's textures */ },
   };

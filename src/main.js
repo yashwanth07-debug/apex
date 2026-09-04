@@ -5,6 +5,7 @@ import { buildTrack, TRACK_HALF } from './world/track.js';
 import { buildEnvironment } from './world/environment.js';
 import { buildF1 } from './world/car.js';
 import { loadFerrari, buildFerrari } from './world/ferrari.js';
+import { loadSpaWorld } from './world/spa.js';
 import { buildPost } from './core/post.js';
 import { RaceAudio } from './core/audio.js';
 import { buildInput } from './core/input.js';
@@ -21,7 +22,7 @@ renderer.setPixelRatio(pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.4, 4200);
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.4, 45000);
 camera.position.set(0, 30, 60);
 scene.add(camera);
 
@@ -58,7 +59,16 @@ const confettiState = [];
 
 async function build() {
   const steps = [
-    ['Laying asphalt', () => { trackApi = buildTrack(scene); }],
+    ['Laying asphalt', async () => {
+      try {
+        const spaScene = await loadSpaWorld();
+        scene.add(spaScene);
+        console.log('[APEX] Spa-Francorchamps world loaded');
+      } catch (err) {
+        console.warn('[APEX] Spa world unavailable — using flat terrain', err && err.message);
+      }
+      trackApi = buildTrack(scene);
+    }],
     ['Raising grandstands', () => { envApi = buildEnvironment(scene, trackApi); }],
     ['Building the grid', async () => {
       try {
@@ -139,6 +149,7 @@ function placeCarOnTrack(vehicle, idx, lane, mesh) {
 
 // ── drive model ────────────────────────────────────────────────────────────
 const _dAt = {};
+const _aheadAt = {};
 function stepPlayer(dt) {
   const t = input.throttle, s = input.steer;
   // acceleration curve: strong launch, gentle top
@@ -182,17 +193,19 @@ function stepPlayer(dt) {
     // align speed direction with heading, clamp sideways slip (arcade grip)
     player.prevIdx = player.idx;
   }
-  // TRACK ASSIST — when the driver isn't steering, hold the racing line:
-  // align the nose to the road AND drift gently back toward the centreline,
-  // so holding forward just drives the car around the circuit.
+  // TRACK ASSIST — when the driver isn't steering, drive the circuit for them:
+  // aim at a point AHEAD on the racing line (proactive cornering) and drift
+  // back toward the centreline, so holding forward just follows the road.
   const sp0 = Math.abs(player.speed);
   if (sp0 > 5 && Math.abs(s) < 0.22) {
-    const yawT = Math.atan2(_dAt.tangent.x, _dAt.tangent.z);
+    const look = Math.round(6 + sp0 * 1.6);
+    trackApi.at(player.idx + look, _aheadAt);
+    const yawT = Math.atan2(_aheadAt.point.x - player.pos.x, _aheadAt.point.z - player.pos.z);
     let dy0 = yawT - player.heading;
     dy0 -= Math.round(dy0 / (Math.PI * 2)) * Math.PI * 2;
-    player.heading += dy0 * Math.min(1, dt * 2.4);
+    player.heading += dy0 * Math.min(1, dt * 3.2);
     const lat = player.pos.clone().sub(_dAt.point).dot(_dAt.left);
-    player.pos.addScaledVector(_dAt.left, -lat * Math.min(1, dt * 1.0));
+    player.pos.addScaledVector(_dAt.left, -lat * Math.min(1, dt * 1.4));
   }
   // steering: steer authority scales with speed, tightens slower
   const sp = sp0;

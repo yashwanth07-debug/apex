@@ -1,38 +1,26 @@
 import * as THREE from 'three';
 import { RNG, fbm } from '../util/noise.js';
+import { SPA_TRACK_PTS } from './spa-track-data.js';
 
-// ── APEX circuit: a flowing closed loop, ~1.9 km of units ──────────────────
+// ── APEX · Spa-Francorchamps 1992 layout — real circuit centreline ─────────
+// Control points + terrain heights are baked from the Spa GLB itself.
+export const SPA_MODE = true;
 export const TRACK_HALF = 7.2;          // asphalt half-width
-const PTS = [
-  // start straight sees the main stand on the left
-  [0, 0, 260], [120, 0, 250], [250, 0, 205],  // straight + kink right
-  [340, 0, 120], [380, 0, 10], [355, 0, -95], // sweeper down the east side
-  [270, 0, -170], [160, 0, -190],             // left hair choice
-  [60, 0, -240], [-30, 0, -330],              // hard braking right
-  [-110, 0, -370], [-215, 0, -355],           // run wide left
-  [-320, 0, -290], [-380, 0, -185],           // esses 1
-  [-365, 0, -70], [-415, 0, 30],              // esses 2 + camber hint
-  [-430, 0, 150], [-380, 0, 260],
-  [-285, 0, 330], [-160, 0, 335], [-40, 0, 305], // home straight south
-];
+const PTS = SPA_TRACK_PTS;
 
 const SAMPLES = 2000;
 
 export function buildTrack(scene) {
   const curve = new THREE.CatmullRomCurve3(PTS.map(p => new THREE.Vector3(...p)), true, 'centripetal', 0.5);
   const pts = curve.getSpacedPoints(SAMPLES);
-
-  // elevation: gentle undulation baked onto the curve's y
   const LEN = curve.getLength();
-  for (const p of pts) {
-    const a = Math.atan2(p.z, p.x);
-    p.y = 1.15 + 0.85 * Math.sin(a * 2.0 + 1.2) + 0.5 * Math.sin(a * 5.0);
-  }
 
   const group = new THREE.Group();
   scene.add(group);
 
-  // ── ground: 2400-radius meadow with subtle noise tone ───────────────────
+  // ── ground: 2400-radius meadow (skipped in Spa mode — the model's own
+  //    Ardennes terrain is the ground) ──────────────────────────────────────
+  if (!SPA_MODE) {
   const rngG = RNG(41);
   const gGeo = new THREE.CircleGeometry(2400, 128);
   gGeo.rotateX(-Math.PI / 2);
@@ -70,6 +58,7 @@ export function buildTrack(scene) {
   const grass = new THREE.Mesh(gGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0 }));
   grass.receiveShadow = true;
   group.add(grass);
+  }
 
   // ── asphalt ribbon (arclength table keeps UVs honest) ───────────────────
   const track = new THREE.BufferGeometry();

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RNG } from '../util/noise.js';
 import { sponsorTex } from './track.js';
-import { TRACK_HALF } from './track.js';
+import { TRACK_HALF, SPA_MODE } from './track.js';
 
 // ── sky, grandstands, crowd, flags, towers, daisies ─────────────────────────
 export function buildEnvironment(scene, trackApi, onReady) {
@@ -9,7 +9,7 @@ export function buildEnvironment(scene, trackApi, onReady) {
 
   // sky dome with sun + warm horizon
   const sky = new THREE.Mesh(
-    new THREE.SphereGeometry(3200, 32, 20),
+    new THREE.SphereGeometry(SPA_MODE ? 26000 : 3200, 32, 20),
     new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false,
       uniforms: { uTime: { value: 0 } },
@@ -46,7 +46,7 @@ export function buildEnvironment(scene, trackApi, onReady) {
   scene.add(sky);
 
   // lighting
-  scene.fog = new THREE.Fog(0xc7d6e4, 760, 3200);
+  scene.fog = new THREE.Fog(0xc7d6e4, SPA_MODE ? 2200 : 760, SPA_MODE ? 24000 : 3200);
   const sun = new THREE.DirectionalLight(0xfff3e0, 3.1);
   sun.position.set(180, 240, 150);
   sun.castShadow = true;
@@ -95,7 +95,7 @@ export function buildEnvironment(scene, trackApi, onReady) {
   anim.startBulbs = addFinishSignal(trackApi, standsGroup) || [];
   // marshal posts + tyre walls + decent ground props
   addMarshals(standsGroup, rng);
-  addTrees(standsGroup, rng);
+  if (!SPA_MODE) addTrees(standsGroup, rng); // Spa ships its own forest
 
   // ── crowd (one instanced mesh across all stands) ────────────────────────
   buildCrowd(stands, anim, rng);

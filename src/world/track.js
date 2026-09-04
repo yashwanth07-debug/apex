@@ -3,12 +3,11 @@ import { RNG, fbm } from '../util/noise.js';
 import { MONZA_TRACK_PTS, MONZA_BASE_Y } from './monza-track-data.js';
 
 // ── APEX · Autodromo Nazionale Monza 1998 Grand Prix layout ───────────────
-// Control points + terrain heights are baked from the Monza 1998 3D model.
 export const MONZA_MODE = true;
 export const TRACK_HALF = 7.2;          // asphalt half-width
 const PTS = MONZA_TRACK_PTS;
 
-const SAMPLES = 2000;
+const SAMPLES = 2400;
 
 export function buildTrack(scene) {
   const curve = new THREE.CatmullRomCurve3(PTS.map(p => new THREE.Vector3(...p)), true, 'centripetal', 0.5);
@@ -18,8 +17,7 @@ export function buildTrack(scene) {
   const group = new THREE.Group();
   scene.add(group);
 
-  // ── Monza fallback floor: a flat Monza-park meadow under the circuit so
-  //    the world is never an empty void while (or if) the Monza terrain loads.
+  // ── Monza fallback floor: a flat Monza-park meadow under the circuit
   const cx = PTS.reduce((s, p) => s + p[0], 0) / PTS.length;
   const cz = PTS.reduce((s, p) => s + p[2], 0) / PTS.length;
   const fGeo = new THREE.CircleGeometry(6500, 72);
@@ -30,7 +28,7 @@ export function buildTrack(scene) {
   floor.receiveShadow = true;
   group.add(floor);
 
-  // ── asphalt ribbon (arclength table keeps UVs honest) ───────────────────
+  // ── asphalt ribbon ──────────────────────────────────────────────────────
   const track = new THREE.BufferGeometry();
   const pos = [], nrm = [], uvs = [], colr = [];
   const left = new THREE.Vector3(), tan = new THREE.Vector3();
@@ -78,22 +76,30 @@ export function buildTrack(scene) {
   buildPaintedLines(pts, group);
   buildStartGrid(pts, group);
 
-  // ── guard rails + tyre bundles on the outside of fast corners ───────────
+  // ── guard rails ─────────────────────────────────────────────────────────
   buildRails(pts, group);
 
   const api = {
     pts, LEN, curve,
-    // nearest track param for an arbitrary world position (hinted walk)
+    // Robust nearest track parameter with global fallback if desynced
     nearest(hint, pos2) {
       const n2 = pts.length;
       let best = hint, bestD = Infinity;
-      for (let k = -80; k <= 80; k += 4) {
+      // Local scan
+      for (let k = -60; k <= 60; k += 2) {
         const j = ((hint + k) % n2 + n2) % n2;
         const d = pts[j].distanceToSquared(pos2);
         if (d < bestD) { bestD = d; best = j; }
       }
-      // refine
-      for (let k = -3; k <= 3; k++) {
+      // If position drifted far (> 30m away), do a global coarse scan to recover
+      if (bestD > 900) {
+        for (let j = 0; j < n2; j += 15) {
+          const d = pts[j].distanceToSquared(pos2);
+          if (d < bestD) { bestD = d; best = j; }
+        }
+      }
+      // Fine refinement
+      for (let k = -4; k <= 4; k++) {
         const j = ((best + k) % n2 + n2) % n2;
         const d = pts[j].distanceToSquared(pos2);
         if (d < bestD) { bestD = d; best = j; }
@@ -246,7 +252,7 @@ function buildBannerPosts(pts, group) {
   const tex = sponsorTex('MONZA GRAND PRIX');
   const signs = new THREE.Group();
   const n = pts.length;
-  for (const off of [160, 650, 1150, 1680]) {
+  for (const off of [180, 780, 1380, 1980]) {
     const i = off % n;
     const p = pts[i], p2 = pts[(i + 5) % n];
     const tan = new THREE.Vector3().subVectors(p2, p).normalize();

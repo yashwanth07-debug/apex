@@ -160,15 +160,15 @@ function loadEnhancements() {
 function resetRace() {
   finished = false;
   hud.hideFinish();
-  player.idx = 30; player.prevIdx = 30;
+  player.idx = 36; player.prevIdx = 36;
   placeCarOnTrack(player, player.idx, 2.2, hero);
   player.speed = 0; player.heading = player.heading || 0;
 
   // Stagger rivals along the 6 sectors of Monza
-  const rivalIndices = [140, 370, 640, 920, 1200, 1450];
+  const rivalIndices = [160, 480, 820, 1180, 1520, 1820];
   rivals.forEach((r, i) => {
     r.done = false; r.speed = 0;
-    r.idx = rivalIndices[i] || (player.idx + 150 * (i + 1));
+    r.idx = rivalIndices[i] || (player.idx + 180 * (i + 1));
     r.targetSpeed = r.baseSpeed;
     placeCarOnTrack(r, r.idx, r.lane, r.mesh);
   });
@@ -212,7 +212,7 @@ function stepPlayer(dt) {
     // 1. Curvature lookahead to pace entry speed before chicanes
     let maxTurnAngle = 0;
     trackApi.at(player.idx, _dAt);
-    for (let offset = 6; offset <= 40; offset += 3) {
+    for (let offset = 6; offset <= 45; offset += 3) {
       trackApi.at(player.idx + offset, _cornerAt);
       const ang = _dAt.tangent.angleTo(_cornerAt.tangent);
       if (ang > maxTurnAngle) maxTurnAngle = ang;
@@ -238,7 +238,7 @@ function stepPlayer(dt) {
     if (nextRival) {
       let rIdxDiff = (nextRival.idx - player.idx) % n;
       if (rIdxDiff < 0) rIdxDiff += n;
-      if (rIdxDiff < 140) {
+      if (rIdxDiff < 150) {
         targetLane = nextRival.lane > 0 ? -2.4 : 2.4;
       }
     }
@@ -297,7 +297,7 @@ function stepPlayer(dt) {
       if (nextRival) {
         let rIdxDiff = (nextRival.idx - player.idx) % trackApi.pts.length;
         if (rIdxDiff < 0) rIdxDiff += trackApi.pts.length;
-        if (rIdxDiff < 140) targetLane = nextRival.lane > 0 ? -2.4 : 2.4;
+        if (rIdxDiff < 150) targetLane = nextRival.lane > 0 ? -2.4 : 2.4;
       }
       player.pos.addScaledVector(_dAt.left, -(dLat - targetLane) * Math.min(1, dt * 3.5));
     }
@@ -440,7 +440,7 @@ function stepConfetti(dt, t) {
     const s = confettiState[i];
     pos.array[i * 3 + 1] -= s.v * dt;
     pos.array[i * 3] += Math.sin(t * 3 + s.ph) * dt * 3.4;
-    pos.array[i * 3] += Math.cos(t * 2.4 + s.ph) * dt * 2.6;
+    pos.array[i * 3 + 2] += Math.cos(t * 2.4 + s.ph) * dt * 2.6;
     if (pos.array[i * 3 + 1] < player.pos.y) pos.array[i * 3 + 1] = player.pos.y + 90 * Math.random();
   }
   pos.needsUpdate = true;

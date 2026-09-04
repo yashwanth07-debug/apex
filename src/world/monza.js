@@ -17,6 +17,13 @@ export function loadMonzaWorld(onProgress) {
           if (o.isMesh) {
             o.castShadow = false;
             o.receiveShadow = true;
+            if (o.material) {
+              if (o.material.transparent) {
+                o.material.alphaTest = 0.5;
+                o.material.depthWrite = true;
+              }
+              o.material.side = THREE.DoubleSide;
+            }
             meshCount++;
           }
         });
@@ -26,7 +33,11 @@ export function loadMonzaWorld(onProgress) {
       (xhr) => {
         if (xhr.lengthComputable && onProgress) onProgress(xhr.loaded / xhr.total);
       },
-      (err) => { _promise = null; reject(err); },
+      (err) => {
+        console.error('[monza] load error:', err);
+        _promise = null;
+        reject(err);
+      },
     );
   });
   return _promise;

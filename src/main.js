@@ -69,7 +69,7 @@ async function build() {
       }
       trackApi = buildTrack(scene);
     }],
-    ['Raising grandstands', () => { envApi = buildEnvironment(scene, trackApi); }],
+    ['Setting the scene', () => { envApi = buildEnvironment(scene, trackApi); }],
     ['Building the grid', async () => {
       try {
         const gltf = await loadFerrari();

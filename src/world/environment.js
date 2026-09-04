@@ -1,9 +1,8 @@
 import * as THREE from 'three';
 import { RNG } from '../util/noise.js';
-import { sponsorTex } from './track.js';
 import { TRACK_HALF, SPA_MODE } from './track.js';
 
-// ── sky, grandstands, crowd, flags, towers, daisies ─────────────────────────
+// ── sky, lighting, finish gantry, trackside props ───────────────────────────
 export function buildEnvironment(scene, trackApi, onReady) {
   const rng = RNG(7);
 
@@ -65,43 +64,15 @@ export function buildEnvironment(scene, trackApi, onReady) {
 
   const anim = { sky, sun };
 
-  // ── grandstands (stands[0] is the main straight one) ────────────────────
-  const standsGroup = new THREE.Group();
-  scene.add(standsGroup);
-  const stands = [];
-  const standDefs = [
-    { at: 40, side: -1, len: 120, tiers: 12 },  // main straight
-    { at: 560, side: 1, len: 90, tiers: 9 },
-    { at: 1020, side: -1, len: 100, tiers: 10 },
-    { at: 1420, side: 1, len: 80, tiers: 8 },
-    { at: 1780, side: -1, len: 70, tiers: 8 },
-  ];
-  for (const def of standDefs) {
-    const g = buildStand(def, rng, standsGroup);
-    const idx = Math.floor(def.at % trackApi.pts.length);
-    const { point, tangent, left } = trackApi.at(idx, {});
-    const yaw = Math.atan2(tangent.x, tangent.z);
-    // stand origin = front edge; rows recede along local -z, so local +z must
-    // point AT the road: side+1 (placed left) -> yaw+PI/2; side-1 -> yaw-PI/2
-    const back = TRACK_HALF + 6.2;
-    g.position.copy(point).addScaledVector(left, def.side * back);
-    g.position.y = point.y - 0.5;
-    g.rotation.y = yaw + (def.side > 0 ? Math.PI / 2 : -Math.PI / 2);
-    stands.push(g);
-  }
-  anim.stands = stands;
+  // ── trackside props (no spectators / grandstands — clean circuit) ────────
+  const tracksideGroup = new THREE.Group();
+  scene.add(tracksideGroup);
 
   // finish-line gantry over start
-  anim.startBulbs = addFinishSignal(trackApi, standsGroup) || [];
+  anim.startBulbs = addFinishSignal(trackApi, tracksideGroup) || [];
   // marshal posts + tyre walls + decent ground props
-  addMarshals(standsGroup, rng);
-  if (!SPA_MODE) addTrees(standsGroup, rng); // Spa ships its own forest
-
-  // ── crowd (one instanced mesh across all stands) ────────────────────────
-  buildCrowd(stands, anim, rng);
-
-  // wave flags at the main stand
-  buildFlags(stands[0], standsGroup, rng, anim);
+  addMarshals(tracksideGroup, rng);
+  if (!SPA_MODE) addTrees(tracksideGroup, rng); // Spa ships its own forest
 
   return {
     anim,
@@ -118,141 +89,8 @@ export function buildEnvironment(scene, trackApi, onReady) {
     update(t, cameraPos) {
       sky.material.uniforms.uTime.value = t;
       sky.position.copy(cameraPos);
-      for (const fl of anim.flags || []) fl.material?.uniforms && (fl.material.uniforms.uT.value = t);
-      if (anim.crowdMat && anim.crowdMat.userData && anim.crowdMat.userData.uT) anim.crowdMat.userData.uT.value = t;
     },
   };
-}
-
-function buildStand(def, rng, parent) {
-  const g = new THREE.Group();
-  const tierW = 4.4, tierH = 1.15;
-  const conc = new THREE.MeshStandardMaterial({ color: 0x99a3ab, roughness: 0.85 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x2a3138, roughness: 0.8, metalness: 0.3 });
-  for (let t = 0; t < def.tiers; t++) {
-    const step = new THREE.Mesh(new THREE.BoxGeometry(def.len, tierH, tierW), conc);
-    step.position.set(0, t * tierH + tierH / 2, -t * tierW);
-    step.castShadow = step.receiveShadow = true;
-    g.add(step);
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(def.len, 0.42, tierW * 0.5), dark);
-    seat.position.set(0, t * tierH + tierH + 0.2, -t * tierW + 0.7);
-    g.add(seat);
-  }
-  // roof on posts
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(def.len + 8, 0.5, def.tiers * tierW * 0.72), dark);
-  roof.position.set(0, def.tiers * tierH + 5.4, -def.tiers * tierW * 0.34);
-  roof.castShadow = true;
-  g.add(roof);
-  for (const x of [-def.len / 2 + 3, 0, def.len / 2 - 3]) {
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.7, def.tiers * tierH + 5.4, 0.7), dark);
-    post.position.set(x, (def.tiers * tierH + 5.4) / 2, -def.tiers * tierW * 0.62);
-    g.add(post);
-  }
-  // crowd seats recording (rows along the stand for instancing)
-  const seats = [];
-  for (let t = 0; t < def.tiers; t++) {
-    const rowN = Math.floor(def.len / 1.05);
-    for (let s = 0; s < rowN; s++) {
-      seats.push(new THREE.Vector3(
-        -def.len / 2 + 0.6 + s * 1.05 + rng() * 0.5,
-        t * tierH + tierH + 0.78,
-        -t * tierW + 0.7 + (rng() - 0.5) * 0.6,
-      ));
-    }
-  }
-  g.userData = { seats, def };
-  parent.add(g);
-  return g;
-}
-
-function buildCrowd(stands, anim, rng) {
-  const capsule = new THREE.CapsuleGeometry(0.21, 0.42, 3, 8);
-  const crowdMats = [];
-  const palette = [0xe23636, 0xf2f4f7, 0x2f7fd0, 0xf5c518, 0x27a05f, 0xf07a1e, 0xd84fb5, 0x38cdd8, 0x8d99ab, 0xbbbcff];
-  const positions = [], colors = [];
-  for (const st of stands) {
-    for (const s of st.userData.seats) {
-      positions.push(st.localToWorld ? s.clone() : s);
-      colors.push(palette[Math.floor(rng() * palette.length)]);
-    }
-    // seats were authored in stand-local space; stand transforms get applied below
-  }
-  const inst = new THREE.InstancedMesh(capsule, new THREE.MeshStandardMaterial({ roughness: 0.8 }), positions.length);
-  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), S = new THREE.Vector3();
-  const c = new THREE.Color();
-  let k = 0;
-  for (const st of stands) {
-    st.updateMatrixWorld();
-    for (const sLocal of st.userData.seats) {
-      const w = sLocal.clone().applyMatrix4(st.matrixWorld);
-      S.setScalar(0.85 + rng() * 0.4);
-      Q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rng() * Math.PI * 2);
-      M.compose(w, Q, S);
-      inst.setMatrixAt(k, M);
-      c.set(palette[Math.floor(rng() * palette.length)]);
-      inst.setColorAt(k, c);
-      k++;
-    }
-  }
-  inst.instanceMatrix.needsUpdate = true;
-  if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-  inst.castShadow = false;
-  // crowd bounce — free-ish price: vertex shader sine over instance world pos
-  inst.material.onBeforeCompile = (sh) => {
-    sh.uniforms.uT = { value: 0 };
-    inst.material.userData.uT = sh.uniforms.uT;
-    sh.vertexShader = 'uniform float uT;\n' + sh.vertexShader.replace(
-      '#include <begin_vertex>',
-      `#include <begin_vertex>
-       #ifdef USE_INSTANCING
-         vec4 ipos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
-         transformed.y += sin(uT * 3.1 + ipos.x * 0.13 + ipos.z * 0.11) * 0.09 + 0.06;
-       #endif`,
-    );
-  };
-  stands.length && stands[0].parent && stands[0].parent.add(inst);
-  anim.crowdMat = inst.material;
-  anim.crowd = inst;
-}
-
-function buildFlags(stand, parent, rng, anim) {
-  anim.flags = [];
-  const cols = [0xff1e2d, 0xf2f4f6, 0x1a6fd4, 0xf5c518, 0x2fd27a];
-  for (let f = 0; f < 5; f++) {
-    const tex = sponsorTex(cols[f] === 0xff1e2d ? 'DRIVE APEX' : 'P1 CUSTOMS', 512, 96);
-    const mat = new THREE.ShaderMaterial({
-      side: THREE.DoubleSide, transparent: true,
-      uniforms: { tMap: { value: tex }, uT: { value: 0 } },
-      vertexShader: /* glsl */`
-        uniform float uT; varying vec2 vUv;
-        void main(){
-          vUv = uv;
-          vec3 p = position;
-          float w = sin(p.x * 2.6 + uT * (6.0 + uv.x * 2.0)) * 0.16 * uv.x;
-          p.z += w;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-        }`,
-      fragmentShader: /* glsl */`
-        uniform sampler2D tMap; varying vec2 vUv;
-        void main(){
-          vec4 c = texture2D(tMap, vUv);
-          c.rgb = mix(c.rgb, vec3(0.9), 0.06);
-          gl_FragColor = c;
-        }`,
-    });
-    const flag = new THREE.Mesh(new THREE.PlaneGeometry(7.4, 1.4, 18, 2), mat);
-    const x = -stand.userData.def.len / 2 + 8 + f * ((stand.userData.def.len - 16) / 4);
-    flag.position.set(x, stand.userData.def.tiers * 1.15 + 4.6, -stand.userData.def.tiers * 4.4 * 0.2);
-    flag.rotation.y = Math.PI / 2;
-    parent.add(flag);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 6.5, 6),
-      new THREE.MeshStandardMaterial({ color: 0x878e96, roughness: 0.5, metalness: 0.8 }));
-    pole.position.set(x - 0.05, stand.userData.def.tiers * 1.15 + 3.2, flag.position.z);
-    parent.add(pole);
-    anim.flags.push(flag);
-    // lift flags with the parent stand
-    parent.add(flag), parent.add(pole);
-  }
 }
 
 function addFinishSignal(trackApi, parent) {

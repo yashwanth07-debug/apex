@@ -11,8 +11,7 @@ import { RaceAudio } from './core/audio.js';
 import { buildInput } from './core/input.js';
 import { HUD } from './core/hud.js';
 
-// ?lite=1 → no shadows / post-FX / reduced resolution: a fast path for weak
-// GPUs and embedded webviews that keeps the game smooth.
+// ?lite=1 → fast path for low-power devices
 const LITE = new URLSearchParams(location.search).has('lite');
 
 const canvas = document.getElementById('track');
@@ -30,7 +29,7 @@ const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.4, 45
 camera.position.set(0, 30, 60);
 scene.add(camera);
 
-// subtle env reflections for paint
+// subtle env reflections for car paint
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
@@ -79,15 +78,13 @@ const MAX_SPEED = 82; // ~295 km/h at Monza
 
 const confettiState = [];
 
-// ── instant boot: circuit + environment + kit car are up in ~1s, so the game
-//    is playable immediately; the Monza 1998 track + Ferrari F1 2019 GLBs
-//    then stream in the background and swap in the moment they arrive. ──────
+// ── instant boot: circuit + environment + kit car ready in ~1s ─────────────
 async function build() {
   const steps = [
     ['Laying Monza asphalt', () => { trackApi = buildTrack(scene); }],
     ['Setting the scene', () => { envApi = buildEnvironment(scene, trackApi); }],
     ['Building the grid', () => {
-      hero = buildF1({ paint: 0xe1141e, number: 23 }); // kit car until the Ferrari arrives
+      hero = buildF1({ paint: 0xe1141e, number: 23 }); // red car
       scene.add(hero);
       for (let i = 0; i < RIVALS.length; i++) {
         const c = buildF1({ paint: RIVALS[i].livery, number: 20 + i * 7 });
@@ -108,7 +105,7 @@ async function build() {
           postApi = buildPost(renderer, scene, camera);
           postApi.setSize(innerWidth, innerHeight, pixelRatio);
         } catch (err) {
-          console.warn('[APEX] post FX unavailable — rendering direct', err && err.message);
+          console.warn('[APEX] post FX direct render fallback', err && err.message);
           postApi = { setSpeed() {}, setSize() {}, render() { renderer.render(scene, camera); } };
         }
       }
@@ -118,15 +115,15 @@ async function build() {
     try { steps[i][1](); } catch (err) { console.error(`[APEX] build "${steps[i][0]}"`, err); throw err; }
     hud.preloader((i + 1) / steps.length, i === steps.length - 1);
     await new Promise(r => requestAnimationFrame(r));
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 80));
   }
   window.__APEX.ready = true;
-  requestAnimationFrame(loop); // publish readiness before the first frame
+  requestAnimationFrame(loop);
   loadEnhancements();
 }
 
-// background heavy-asset streaming with live progress
-const loads = { monza: -1, ferrari: -1 }; // -1 done, 0..1 in-flight
+// background asset streaming
+const loads = { monza: -1, ferrari: -1 };
 function syncLoadPill() {
   const bits = [];
   if (loads.monza >= 0) bits.push(`MONZA 1998 ${Math.round(loads.monza * 100)}%`);
@@ -140,9 +137,9 @@ function loadEnhancements() {
   loadMonzaWorld((f) => { loads.monza = f; syncLoadPill(); })
     .then((monzaScene) => {
       scene.add(monzaScene);
-      console.log('[APEX] Monza 1998 circuit world loaded');
+      console.log('[APEX] Monza 1998 3D environment added');
     })
-    .catch((err) => console.warn('[APEX] Monza world unavailable — racing on the procedural circuit', err && err.message))
+    .catch((err) => console.warn('[APEX] Monza 3D unavailable:', err && err.message))
     .finally(() => { loads.monza = -1; syncLoadPill(); });
 
   loadFerrari((f) => { loads.ferrari = f; syncLoadPill(); })
@@ -156,7 +153,7 @@ function loadEnhancements() {
       if (!started) placeCarOnTrack(player, player.idx, player.off, hero);
       console.log('[APEX] Ferrari F1 2019 loaded');
     })
-    .catch((err) => console.warn('[APEX] Ferrari unavailable — keeping kit car', err && err.message))
+    .catch((err) => console.warn('[APEX] Ferrari unavailable:', err && err.message))
     .finally(() => { loads.ferrari = -1; syncLoadPill(); });
 }
 
@@ -164,10 +161,10 @@ function resetRace() {
   finished = false;
   hud.hideFinish();
   player.idx = 30; player.prevIdx = 30;
-  placeCarOnTrack(player, player.idx, 2.2, hero); // red car, right row
+  placeCarOnTrack(player, player.idx, 2.2, hero);
   player.speed = 0; player.heading = player.heading || 0;
 
-  // Stagger the 6 rivals around the Monza circuit for optimal pacing
+  // Stagger rivals along the 6 sectors of Monza
   const rivalIndices = [140, 370, 640, 920, 1200, 1450];
   rivals.forEach((r, i) => {
     r.done = false; r.speed = 0;
@@ -212,29 +209,29 @@ function stepPlayer(dt) {
 
   // ── AUTO DRIVE AI CONTROLLER ─────────────────────────────────────────────
   if (autoDrive) {
-    // 1. Curvature lookahead over the next 160m (anticipate braking before turns)
+    // 1. Curvature lookahead to pace entry speed before chicanes
     let maxTurnAngle = 0;
     trackApi.at(player.idx, _dAt);
-    for (let offset = 6; offset <= 45; offset += 3) {
+    for (let offset = 6; offset <= 40; offset += 3) {
       trackApi.at(player.idx + offset, _cornerAt);
       const ang = _dAt.tangent.angleTo(_cornerAt.tangent);
       if (ang > maxTurnAngle) maxTurnAngle = ang;
     }
 
-    let targetSpeed = 80; // ~288 km/h on Monza straights
-    if (maxTurnAngle > 0.6) targetSpeed = 36; // tight chicane (Variante del Rettifilo)
-    else if (maxTurnAngle > 0.35) targetSpeed = 48; // medium chicane (Variante della Roggia)
-    else if (maxTurnAngle > 0.18) targetSpeed = 62; // sweeping corners
+    let targetSpeed = 80; // flat-out on Monza straights
+    if (maxTurnAngle > 0.55) targetSpeed = 36; // tight chicane (Variante del Rettifilo)
+    else if (maxTurnAngle > 0.32) targetSpeed = 50; // medium chicane (Variante della Roggia)
+    else if (maxTurnAngle > 0.16) targetSpeed = 64; // sweeping corners
 
     if (player.speed < targetSpeed - 1.5) {
       t = 1.0;
-    } else if (player.speed > targetSpeed + 2.5) {
+    } else if (player.speed > targetSpeed + 2.0) {
       t = -0.95; // firm braking
     } else {
-      t = 0.25;
+      t = 0.22;
     }
 
-    // 2. Overtake line selection (steer into clear lane when approaching rival)
+    // 2. Overtake lane selection
     let targetLane = 0;
     const n = trackApi.pts.length;
     const nextRival = rivals.find(r => !r.done);
@@ -257,20 +254,19 @@ function stepPlayer(dt) {
     player.heading += dy * Math.min(1, dt * 9.5);
   }
 
-  // acceleration curve: strong launch, gentle top
+  // acceleration
   const fwd = player.speed >= -0.5 ? 1 : -1;
   let accel;
   if (t > 0) {
     const curving = 1.15 - Math.max(0, Math.min(1, Math.abs(player.speed) / MAX_SPEED)) * 0.55;
     accel = 19.5 * t * curving * fwd;
   } else {
-    accel = t * (player.speed > 0.5 ? 46 : 14); // hard brake, gentle reverse
+    accel = t * (player.speed > 0.5 ? 46 : 14);
   }
-  // rolling resistance + aero drag
   accel -= Math.sign(player.speed) * (0.35 + player.speed * player.speed * 0.00032);
   player.speed += accel * dt;
 
-  // off-track: gravel soundwall of physics
+  // off-track physics
   let offTrack = false;
   if (trackApi) {
     player.idx = trackApi.nearest(player.prevIdx, player.pos);
@@ -279,25 +275,23 @@ function stepPlayer(dt) {
     const absLat = Math.abs(dLat);
     offTrack = absLat > TRACK_HALF + 0.4;
 
-    // wall containment: slide along the barrier, bleeding off speed gently
-    if (absLat > TRACK_HALF + 4.2) {
-      const clampd = Math.sign(dLat) * (TRACK_HALF + 4.2);
+    // smooth barrier deflection (no violent snapping)
+    if (absLat > TRACK_HALF + 1.2) {
+      const clampd = Math.sign(dLat) * (TRACK_HALF + 1.2);
       player.pos.copy(_dAt.point).addScaledVector(_dAt.left, clampd);
-      player.speed *= 0.96;
+      player.speed = THREE.MathUtils.clamp(player.speed * (1 - 0.4 * dt), -10, 52);
       const wallYaw = Math.atan2(_dAt.tangent.x, _dAt.tangent.z);
       let dy = wallYaw - player.heading;
       dy -= Math.round(dy / (Math.PI * 2)) * Math.PI * 2;
-      player.heading += dy * 0.35;
+      player.heading += dy * Math.min(1, dt * 3.5);
       offTrack = false;
-    }
-    // grass braking
-    if (offTrack) {
-      const cap = 26;
+    } else if (offTrack) {
+      const cap = 28;
       if (player.speed > cap) player.speed = THREE.MathUtils.clamp(player.speed - 22 * dt, cap, 999);
-      player.speed -= player.speed * 0.8 * dt;
+      player.speed -= player.speed * 0.7 * dt;
     }
+
     if (autoDrive) {
-      // Lateral centering assist in auto drive
       let targetLane = 0;
       const nextRival = rivals.find(r => !r.done);
       if (nextRival) {
@@ -310,31 +304,30 @@ function stepPlayer(dt) {
     player.prevIdx = player.idx;
   }
 
-  // MANUAL TRACK ASSIST (when manual driving and not steering hard)
+  // MANUAL TRACK ASSIST
   const sp0 = Math.abs(player.speed);
   if (!autoDrive) {
-    if (sp0 > 5 && Math.abs(s) < 0.22) {
-      const look = Math.round(6 + sp0 * 1.6);
+    if (sp0 > 5 && Math.abs(s) < 0.2) {
+      const look = Math.round(8 + sp0 * 0.25);
       trackApi.at(player.idx + look, _aheadAt);
       const yawT = Math.atan2(_aheadAt.point.x - player.pos.x, _aheadAt.point.z - player.pos.z);
       let dy0 = yawT - player.heading;
       dy0 -= Math.round(dy0 / (Math.PI * 2)) * Math.PI * 2;
-      player.heading += dy0 * Math.min(1, dt * 3.2);
+      player.heading += dy0 * Math.min(1, dt * 2.8);
       const lat = player.pos.clone().sub(_dAt.point).dot(_dAt.left);
-      player.pos.addScaledVector(_dAt.left, -lat * Math.min(1, dt * 1.4));
+      player.pos.addScaledVector(_dAt.left, -lat * Math.min(1, dt * 1.2));
     }
 
-    // manual steering
     const sp = sp0;
     const steerAuthority = (0.95 / (1 + sp * 0.05)) * Math.min(1, sp / 5);
-    player.heading -= s * steerAuthority * 2.3 * dt * Math.sign(player.speed || 1);
+    player.heading -= s * steerAuthority * 2.5 * dt * Math.sign(player.speed || 1);
   }
 
   const dirX = Math.sin(player.heading), dirZ = Math.cos(player.heading);
   player.pos.x += dirX * player.speed * dt;
   player.pos.z += dirZ * player.speed * dt;
 
-  // snap down to asphalt height
+  // snap to track elevation
   if (trackApi) {
     const h = trackApi.heightAt(player.idx);
     player.pos.y += (h + (hero.userData.rideHeight ?? 0.27) - player.pos.y) * Math.min(1, dt * 10);
@@ -350,7 +343,7 @@ function stepPlayer(dt) {
   return offTrack;
 }
 
-// ── rivals: follow the racing line ──────────────────────────────────────────
+// ── rivals: paced racing line ──────────────────────────────────────────────
 function stepRivals(dt, t) {
   const n = trackApi.pts.length;
   for (const r of rivals) {
@@ -367,7 +360,7 @@ function stepRivals(dt, t) {
   }
 }
 
-// overtake: player passes a rival → open that panel once
+// overtake detection
 let globalT = 0;
 function checkOvertakes() {
   const n = trackApi.pts.length;
@@ -394,13 +387,12 @@ function checkOvertakes() {
   }
 }
 
-// finish: player crosses start line with a full lap and all six cars passed
+// finish handler
 function checkFinish() {
   const n = trackApi.pts.length;
   const pT = player.idx / n;
   for (const c of [player]) {
     if (!c._lastT) { c._lastT = pT; return; }
-    // wrap detection: t fell from >0.86 to <0.14
     if (c._lastT > 0.86 && pT < 0.14 && !finished) {
       player.completions++;
       const allPassed = rivals.every(r => r.done);
@@ -448,13 +440,13 @@ function stepConfetti(dt, t) {
     const s = confettiState[i];
     pos.array[i * 3 + 1] -= s.v * dt;
     pos.array[i * 3] += Math.sin(t * 3 + s.ph) * dt * 3.4;
-    pos.array[i * 3 + 2] += Math.cos(t * 2.4 + s.ph) * dt * 2.6;
+    pos.array[i * 3] += Math.cos(t * 2.4 + s.ph) * dt * 2.6;
     if (pos.array[i * 3 + 1] < player.pos.y) pos.array[i * 3 + 1] = player.pos.y + 90 * Math.random();
   }
   pos.needsUpdate = true;
 }
 
-// ── camera: chase with speed-widened FOV ────────────────────────────────────
+// ── camera: chase with smooth FOV ──────────────────────────────────────────
 const camTarget = new THREE.Vector3();
 const camPos = new THREE.Vector3(0, 30, 60);
 let camYaw = 0;
@@ -485,7 +477,7 @@ function angLerp(target, current, k) {
   return d * k;
 }
 
-// ── HUD zone names per progress ─────────────────────────────────────────────
+// ── HUD zone names ──────────────────────────────────────────────────────────
 function zoneFor(pT) {
   if (pT < 0.05) return ['RETTIFILO TRIBUNE', 'Monza pit straight — launch into Variante'];
   const next = rivals.find(r => !r.done);
@@ -493,7 +485,6 @@ function zoneFor(pT) {
   return [`HUNTING ${next.data.tag}`, `${next.data.carTag} · section ${rivals.filter(r => r.done).length + 1} of 6`];
 }
 
-// hero wheel spin + exhaust shimmer + slip-drag bubbles
 function dressHero(dt, off) {
   const rot = player.speed * dt / 0.34;
   hero.userData.spin(rot, -input.steer * 0.8 * Math.min(1, Math.abs(player.speed) / 20));
@@ -568,7 +559,7 @@ function applySize() {
 }
 addEventListener('resize', applySize);
 
-// QA + demo hooks
+// QA + automation API
 window.__APEX = {
   ready: false,
   slowmo(x) { timeScale = x; },
